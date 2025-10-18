@@ -23,4 +23,16 @@ public struct DataManagerAsyncConfiguration: Sendable {
 
         self.managerKey = managerKey
     }
+
+    // MARK: - Mock Factory
+
+    /// Mock configuration with customizable parameters
+    public static func mock(managerKey: String = "test") -> Self {
+        DataManagerAsyncConfiguration(managerKey: managerKey)
+    }
+
+    /// Mock for collection manager configuration
+    public static func mockCollection(managerKey: String = "collection") -> Self {
+        DataManagerAsyncConfiguration(managerKey: managerKey)
+    }
 }

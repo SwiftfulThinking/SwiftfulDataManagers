@@ -32,4 +32,25 @@ public struct DataManagerSyncConfiguration: Sendable {
         self.managerKey = managerKey
         self.enablePendingWrites = enablePendingWrites
     }
+
+    // MARK: - Mock Factory
+
+    /// Mock configuration with customizable parameters
+    public static func mock(
+        managerKey: String = "test",
+        enablePendingWrites: Bool = true
+    ) -> Self {
+        DataManagerSyncConfiguration(
+            managerKey: managerKey,
+            enablePendingWrites: enablePendingWrites
+        )
+    }
+
+    /// Mock with pending writes disabled
+    public static func mockNoPendingWrites(managerKey: String = "test") -> Self {
+        DataManagerSyncConfiguration(
+            managerKey: managerKey,
+            enablePendingWrites: false
+        )
+    }
 }
