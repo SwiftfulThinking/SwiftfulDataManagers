@@ -1,0 +1,100 @@
+//
+//  SwiftDataCollectionPersistence.swift
+//  SwiftfulDataManagers
+//
+//  Created by Nick Sarno on 1/17/25.
+//
+
+import Foundation
+import SwiftData
+
+public final class SwiftDataCollectionPersistence<T: DataModelProtocol>: LocalCollectionPersistence {
+
+    private let container: ModelContainer
+
+    private var mainContext: ModelContext {
+        container.mainContext
+    }
+
+    public init() {
+        // swiftlint:disable:next force_try
+        self.container = try! ModelContainer(for: DocumentEntity<T>.self)
+    }
+
+    public func getCollection() throws -> [T] {
+        let descriptor = FetchDescriptor<DocumentEntity<T>>()
+        let entities = try mainContext.fetch(descriptor)
+        return try entities.map { try $0.toDocument() }
+    }
+
+    public func saveCollection(_ collection: [T]) throws {
+        // Delete all existing
+        let descriptor = FetchDescriptor<DocumentEntity<T>>()
+        let allEntities = try mainContext.fetch(descriptor)
+        for entity in allEntities {
+            mainContext.delete(entity)
+        }
+
+        // Insert new collection
+        for document in collection {
+            let entity = try DocumentEntity.from(document)
+            mainContext.insert(entity)
+        }
+
+        try mainContext.save()
+    }
+
+    public func saveDocument(_ document: T) throws {
+        // Check if document already exists
+        let descriptor = FetchDescriptor<DocumentEntity<T>>(
+            predicate: #Predicate { $0.id == document.id }
+        )
+        if let existing = try? mainContext.fetch(descriptor).first {
+            // Update existing entity
+            try existing.update(from: document)
+        } else {
+            // Insert new entity
+            let entity = try DocumentEntity.from(document)
+            mainContext.insert(entity)
+        }
+        try mainContext.save()
+    }
+
+    public func deleteDocument(id: String) throws {
+        let descriptor = FetchDescriptor<DocumentEntity<T>>(
+            predicate: #Predicate { $0.id == id }
+        )
+        if let entity = try? mainContext.fetch(descriptor).first {
+            mainContext.delete(entity)
+            try mainContext.save()
+        }
+    }
+
+    // MARK: - Pending Writes Persistence
+
+    private func pendingWritesFileURL() -> URL {
+        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsDirectory.appendingPathComponent("CollectionManager_PendingWrites_\(T.self).json")
+    }
+
+    public func savePendingWrites(_ writes: [[String: any Sendable]]) throws {
+        let fileURL = pendingWritesFileURL()
+        let data = try JSONSerialization.data(withJSONObject: writes)
+        try data.write(to: fileURL)
+    }
+
+    public func getPendingWrites() throws -> [[String: any Sendable]] {
+        let fileURL = pendingWritesFileURL()
+        guard let data = try? Data(contentsOf: fileURL) else {
+            return []
+        }
+        return (try? JSONSerialization.jsonObject(with: data) as? [[String: any Sendable]]) ?? []
+    }
+
+    public func clearPendingWrites() throws {
+        let fileURL = pendingWritesFileURL()
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try FileManager.default.removeItem(at: fileURL)
+        }
+    }
+}

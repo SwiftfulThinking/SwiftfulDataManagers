@@ -24,6 +24,7 @@ import Foundation
 ///     }
 /// }
 /// ```
+@MainActor
 public protocol LocalCollectionPersistence<T>: Sendable {
     associatedtype T: DataModelProtocol
 
