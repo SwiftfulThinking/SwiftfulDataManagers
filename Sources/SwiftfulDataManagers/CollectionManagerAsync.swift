@@ -30,7 +30,7 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
 
     internal let remote: any RemoteCollectionService<T>
     internal let configuration: DataManagerConfiguration
-    internal let logger: (any DataLogger)?
+    public let logger: (any DataLogger)?
 
     // MARK: - Initialization
 

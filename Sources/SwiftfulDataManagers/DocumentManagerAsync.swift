@@ -30,7 +30,7 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
 
     internal let remote: any RemoteDocumentService<T>
     internal let configuration: DataManagerConfiguration
-    internal let logger: (any DataLogger)?
+    public let logger: (any DataLogger)?
 
     // MARK: - Initialization
 
