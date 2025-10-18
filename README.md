@@ -67,9 +67,16 @@ let collectionManager = CollectionManagerSync(
     logger: DataLogger?
 )
 
-// Async managers (no local persistence)
+// Document Manager async (no local persistence)
 let asyncDocumentManager = DocumentManagerAsync(
     service: any RemoteDocumentService,
+    configuration: DataManagerAsyncConfiguration,
+    logger: DataLogger?
+)
+
+// Collection Manager async (no local persistence)
+let asyncCollectionManager = CollectionManagerAsync(
+    service: any RemoteCollectionService,
     configuration: DataManagerAsyncConfiguration,
     logger: DataLogger?
 )
