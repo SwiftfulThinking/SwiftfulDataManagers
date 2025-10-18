@@ -15,7 +15,7 @@ public final class MockLocalDocumentPersistence<T: DataModelProtocol>: LocalDocu
     private let managerKey: String
     private var cachedDocument: T?
     private var cachedDocumentId: String?
-    private var cachedPendingWrites: [[String: any Sendable]] = []
+    private var cachedPendingWrites: [PendingWrite] = []
 
     // MARK: - Initialization
 
@@ -35,11 +35,11 @@ public final class MockLocalDocumentPersistence<T: DataModelProtocol>: LocalDocu
         return cachedDocument
     }
 
-    public func savePendingWrites(_ writes: [[String: any Sendable]]) throws {
+    public func savePendingWrites(_ writes: [PendingWrite]) throws {
         cachedPendingWrites = writes
     }
 
-    public func getPendingWrites() throws -> [[String: any Sendable]] {
+    public func getPendingWrites() throws -> [PendingWrite] {
         return cachedPendingWrites
     }
 

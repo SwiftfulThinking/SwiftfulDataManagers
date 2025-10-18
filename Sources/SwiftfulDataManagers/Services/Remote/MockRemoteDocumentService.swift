@@ -40,7 +40,7 @@ public final class MockRemoteDocumentService<T: DataModelProtocol>: RemoteDocume
         continuation?.yield(model)
     }
 
-    public func updateDocument(id: String, data: [String: any Sendable]) async throws {
+    public func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws {
         try await Task.sleep(for: .seconds(0.5))
 
         guard currentDocument?.id == id else {

@@ -47,18 +47,22 @@ public struct FileManagerDocumentPersistence<T: DataModelProtocol>: LocalDocumen
         return documentsDirectory.appendingPathComponent("DocumentManager_PendingWrites_\(managerKey).json")
     }
 
-    public func savePendingWrites(_ writes: [[String: any Sendable]]) throws {
+    public func savePendingWrites(_ writes: [PendingWrite]) throws {
         let fileURL = pendingWritesFileURL()
-        let data = try JSONSerialization.data(withJSONObject: writes)
+        let dictionaries = writes.map { $0.toDictionary() }
+        let data = try JSONSerialization.data(withJSONObject: dictionaries)
         try data.write(to: fileURL)
     }
 
-    public func getPendingWrites() throws -> [[String: any Sendable]] {
+    public func getPendingWrites() throws -> [PendingWrite] {
         let fileURL = pendingWritesFileURL()
         guard let data = try? Data(contentsOf: fileURL) else {
             return []
         }
-        return (try? JSONSerialization.jsonObject(with: data) as? [[String: any Sendable]]) ?? []
+        guard let dictionaries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+        return dictionaries.compactMap { PendingWrite.fromDictionary($0) }
     }
 
     public func clearPendingWrites() throws {

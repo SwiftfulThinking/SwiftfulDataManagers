@@ -50,7 +50,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
 
     private var currentDocumentListenerTask: Task<Void, Error>?
     private var documentId: String?
-    private var pendingWrites: [[String: any Sendable]] = []
+    private var pendingWrites: [PendingWrite] = []
     private var listenerFailedToAttach: Bool = false
     private var listenerRetryCount: Int = 0
     private var listenerRetryTask: Task<Void, Never>?
@@ -207,7 +207,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     /// Update document with a dictionary of fields
     /// - Parameter data: Dictionary of fields to update
     /// - Throws: Error if update fails or no document ID
-    open func updateDocument(data: [String: any Sendable]) async throws {
+    open func updateDocument(data: [String: any Codable & Sendable]) async throws {
         guard let documentId else {
             throw DataManagerError.noDocumentId
         }
@@ -351,18 +351,16 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         listenerRetryCount = 0
     }
 
-    private func addPendingWrite(_ data: [String: any Sendable]) {
+    private func addPendingWrite(_ data: [String: any Codable & Sendable]) {
         // DocumentManagerSync manages a single document, so merge all pending writes
-        if let existingIndex = pendingWrites.indices.last {
+        if let lastWrite = pendingWrites.last {
             // Merge new fields into existing write (new values overwrite old)
-            var mergedWrite = pendingWrites[existingIndex]
-            for (key, value) in data {
-                mergedWrite[key] = value
-            }
-            pendingWrites[existingIndex] = mergedWrite
+            let mergedWrite = lastWrite.merging(with: data)
+            pendingWrites[pendingWrites.count - 1] = mergedWrite
         } else {
             // No existing writes, add new one
-            pendingWrites.append(data)
+            let newWrite = PendingWrite(documentId: nil, fields: data)
+            pendingWrites.append(newWrite)
         }
 
         try? local.savePendingWrites(pendingWrites)
@@ -381,11 +379,11 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         logger?.trackEvent(event: Event.syncPendingWritesStart(key: configuration.managerKey, count: pendingWrites.count))
 
         var successCount = 0
-        var failedWrites: [[String: any Sendable]] = []
+        var failedWrites: [PendingWrite] = []
 
         for write in pendingWrites {
             do {
-                try await remote.updateDocument(id: documentId, data: write)
+                try await remote.updateDocument(id: documentId, data: write.fields)
                 successCount += 1
             } catch {
                 failedWrites.append(write)

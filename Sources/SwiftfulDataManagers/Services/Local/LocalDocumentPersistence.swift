@@ -41,12 +41,12 @@ public protocol LocalDocumentPersistence<T>: Sendable {
     /// Save pending writes to local storage
     /// - Parameter writes: Array of pending write operations
     /// - Throws: Error if save fails
-    func savePendingWrites(_ writes: [[String: any Sendable]]) throws
+    func savePendingWrites(_ writes: [PendingWrite]) throws
 
     /// Retrieve pending writes from local storage
     /// - Returns: Array of pending write operations
     /// - Throws: Error if retrieval fails
-    func getPendingWrites() throws -> [[String: any Sendable]]
+    func getPendingWrites() throws -> [PendingWrite]
 
     /// Clear all pending writes from local storage
     /// - Throws: Error if clear fails

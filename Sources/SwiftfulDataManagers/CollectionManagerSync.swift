@@ -49,7 +49,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     // MARK: - Private Properties
 
     private var currentCollectionListenerTask: Task<Void, Error>?
-    private var pendingWrites: [[String: any Sendable]] = []
+    private var pendingWrites: [PendingWrite] = []
     private var listenerFailedToAttach: Bool = false
     private var listenerRetryCount: Int = 0
     private var listenerRetryTask: Task<Void, Never>?
@@ -205,7 +205,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Parameter filters: Dictionary of field names to values for exact match queries
     /// - Returns: Filtered array of documents matching all filters
     /// - Note: This is a local filter on cached data. For remote queries, use getDocumentsAsync(where:)
-    public func getDocuments(where filters: [String: any Sendable]) -> [T] {
+    public func getDocuments(where filters: [String: any Codable & Sendable]) -> [T] {
         // This is a cache-only filter - would need reflection to implement properly
         // For now, return all documents - subclasses should override for custom filtering
         return currentCollection
@@ -215,7 +215,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Parameter filters: Dictionary of field names to values for exact match queries
     /// - Returns: Array of documents matching all filters from remote query
     /// - Throws: Error if query fails
-    public func getDocumentsAsync(where filters: [String: any Sendable]) async throws -> [T] {
+    public func getDocumentsAsync(where filters: [String: any Codable & Sendable]) async throws -> [T] {
         logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filters.count))
 
         do {
@@ -259,7 +259,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     ///   - id: The document ID
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
-    open func updateDocument(id: String, data: [String: any Sendable]) async throws {
+    open func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws {
         defer {
             if listenerFailedToAttach {
                 startListener()
@@ -427,29 +427,29 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         listenerRetryCount = 0
     }
 
-    private func addPendingWrite(_ data: [String: any Sendable]) {
+    private func addPendingWrite(_ data: [String: any Codable & Sendable]) {
         guard let documentId = data["id"] as? String else {
             // If no document ID, just append
-            pendingWrites.append(data)
+            let newWrite = PendingWrite(documentId: nil, fields: data)
+            pendingWrites.append(newWrite)
             try? local.savePendingWrites(pendingWrites)
             logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
             return
         }
 
         // Find existing pending write for this document
-        if let existingIndex = pendingWrites.firstIndex(where: { write in
-            guard let writeDocId = write["id"] as? String else { return false }
-            return writeDocId == documentId
-        }) {
+        if let existingIndex = pendingWrites.firstIndex(where: { $0.documentId == documentId }) {
             // Merge new fields into existing write (new values overwrite old)
-            var mergedWrite = pendingWrites[existingIndex]
-            for (key, value) in data where key != "id" {
-                mergedWrite[key] = value
-            }
+            var fieldsToMerge = data
+            fieldsToMerge.removeValue(forKey: "id")
+            let mergedWrite = pendingWrites[existingIndex].merging(with: fieldsToMerge)
             pendingWrites[existingIndex] = mergedWrite
         } else {
             // No existing write for this document, add new one
-            pendingWrites.append(data)
+            var fields = data
+            fields.removeValue(forKey: "id")
+            let newWrite = PendingWrite(documentId: documentId, fields: fields)
+            pendingWrites.append(newWrite)
         }
 
         try? local.savePendingWrites(pendingWrites)
@@ -458,10 +458,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
     private func clearPendingWrites(forDocumentId documentId: String) {
         let originalCount = pendingWrites.count
-        pendingWrites.removeAll { write in
-            guard let writeDocId = write["id"] as? String else { return false }
-            return writeDocId == documentId
-        }
+        pendingWrites.removeAll { $0.documentId == documentId }
 
         if originalCount != pendingWrites.count {
             try? local.savePendingWrites(pendingWrites)
@@ -475,17 +472,17 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         logger?.trackEvent(event: Event.syncPendingWritesStart(key: configuration.managerKey, count: pendingWrites.count))
 
         var successCount = 0
-        var failedWrites: [[String: any Sendable]] = []
+        var failedWrites: [PendingWrite] = []
 
         for write in pendingWrites {
             // Pending writes need a document ID - skip if not present
-            guard let documentId = write["id"] as? String else {
+            guard let documentId = write.documentId else {
                 failedWrites.append(write)
                 continue
             }
 
             do {
-                try await remote.updateDocument(id: documentId, data: write)
+                try await remote.updateDocument(id: documentId, data: write.fields)
                 successCount += 1
             } catch {
                 failedWrites.append(write)

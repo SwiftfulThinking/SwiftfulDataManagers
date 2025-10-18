@@ -88,7 +88,7 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
     ///   - id: The document ID
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
-    open func updateDocument(id: String, data: [String: any Sendable]) async throws {
+    open func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws {
         logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
 
         do {

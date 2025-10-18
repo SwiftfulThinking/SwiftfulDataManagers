@@ -44,7 +44,7 @@ public protocol RemoteDocumentService<T>: Sendable {
     ///   - id: The document's unique identifier
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
-    func updateDocument(id: String, data: [String: any Sendable]) async throws
+    func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws
 
     /// Stream real-time updates for a document
     /// - Parameter id: The document's unique identifier

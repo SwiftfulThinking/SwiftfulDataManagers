@@ -14,7 +14,7 @@ public final class MockLocalCollectionPersistence<T: DataModelProtocol>: LocalCo
 
     private let managerKey: String
     private var cachedCollection: [T] = []
-    private var cachedPendingWrites: [[String: any Sendable]] = []
+    private var cachedPendingWrites: [PendingWrite] = []
 
     // MARK: - Initialization
 
@@ -45,11 +45,11 @@ public final class MockLocalCollectionPersistence<T: DataModelProtocol>: LocalCo
         cachedCollection.removeAll(where: { $0.id == id })
     }
 
-    public func savePendingWrites(_ writes: [[String: any Sendable]]) throws {
+    public func savePendingWrites(_ writes: [PendingWrite]) throws {
         cachedPendingWrites = writes
     }
 
-    public func getPendingWrites() throws -> [[String: any Sendable]] {
+    public func getPendingWrites() throws -> [PendingWrite] {
         return cachedPendingWrites
     }
 
