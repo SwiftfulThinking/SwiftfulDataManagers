@@ -51,6 +51,8 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     private var currentCollectionListenerTask: Task<Void, Error>?
     private var pendingWrites: [[String: any Sendable]] = []
     private var listenerFailedToAttach: Bool = false
+    private var listenerRetryCount: Int = 0
+    private var listenerRetryTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -247,12 +249,30 @@ open class CollectionManagerSync<T: DataModelProtocol> {
                 let stream = remote.streamCollection()
 
                 for try await collection in stream {
+                    // Reset retry count on successful connection
+                    self.listenerRetryCount = 0
+
                     handleCollectionUpdate(collection)
                     logger?.trackEvent(event: Event.listenerSuccess(count: collection.count))
                 }
             } catch {
                 logger?.trackEvent(event: Event.listenerFail(error: error))
                 self.listenerFailedToAttach = true
+
+                // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
+                self.listenerRetryCount += 1
+                let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
+
+                logger?.trackEvent(event: Event.listenerRetrying(retryCount: self.listenerRetryCount, delaySeconds: delay))
+
+                // Schedule retry with exponential backoff
+                self.listenerRetryTask?.cancel()
+                self.listenerRetryTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(delay))
+                    if !Task.isCancelled && self.listenerFailedToAttach {
+                        self.startListener()
+                    }
+                }
             }
         }
     }
@@ -260,6 +280,9 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     private func stopListener() {
         currentCollectionListenerTask?.cancel()
         currentCollectionListenerTask = nil
+        listenerRetryTask?.cancel()
+        listenerRetryTask = nil
+        listenerRetryCount = 0
     }
 
     private func addPendingWrite(_ data: [String: any Sendable]) {
@@ -340,6 +363,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         case listenerStart
         case listenerSuccess(count: Int)
         case listenerFail(error: Error)
+        case listenerRetrying(retryCount: Int, delaySeconds: Double)
         case listenerStopped
         case saveStart(documentId: String)
         case saveSuccess(documentId: String)
@@ -362,6 +386,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             case .listenerStart:                return "ColManS_listener_start"
             case .listenerSuccess:              return "ColManS_listener_success"
             case .listenerFail:                 return "ColManS_listener_fail"
+            case .listenerRetrying:             return "ColManS_listener_retrying"
             case .listenerStopped:              return "ColManS_listener_stopped"
             case .saveStart:                    return "ColManS_save_start"
             case .saveSuccess:                  return "ColManS_save_success"
@@ -389,6 +414,9 @@ open class CollectionManagerSync<T: DataModelProtocol> {
                 dict["count"] = count
             case .listenerFail(let error):
                 dict.merge(error.eventParameters)
+            case .listenerRetrying(let retryCount, let delaySeconds):
+                dict["retry_count"] = retryCount
+                dict["delay_seconds"] = delaySeconds
             case .saveStart(let documentId), .saveSuccess(let documentId),
                  .updateStart(let documentId), .updateSuccess(let documentId),
                  .deleteStart(let documentId), .deleteSuccess(let documentId):

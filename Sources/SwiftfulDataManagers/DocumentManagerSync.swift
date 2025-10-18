@@ -52,6 +52,8 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     private var documentId: String?
     private var pendingWrites: [[String: any Sendable]] = []
     private var listenerFailedToAttach: Bool = false
+    private var listenerRetryCount: Int = 0
+    private var listenerRetryTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -282,6 +284,9 @@ open class DocumentManagerSync<T: DataModelProtocol> {
                 let stream = remote.streamDocument(id: documentId)
 
                 for try await document in stream {
+                    // Reset retry count on successful connection
+                    self.listenerRetryCount = 0
+
                     handleDocumentUpdate(document)
 
                     if document != nil {
@@ -293,6 +298,21 @@ open class DocumentManagerSync<T: DataModelProtocol> {
             } catch {
                 logger?.trackEvent(event: Event.listenerFail(documentId: documentId, error: error))
                 self.listenerFailedToAttach = true
+
+                // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
+                self.listenerRetryCount += 1
+                let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
+
+                logger?.trackEvent(event: Event.listenerRetrying(documentId: documentId, retryCount: self.listenerRetryCount, delaySeconds: delay))
+
+                // Schedule retry with exponential backoff
+                self.listenerRetryTask?.cancel()
+                self.listenerRetryTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(delay))
+                    if !Task.isCancelled && self.listenerFailedToAttach {
+                        self.startListener()
+                    }
+                }
             }
         }
     }
@@ -300,6 +320,9 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     private func stopListener() {
         currentDocumentListenerTask?.cancel()
         currentDocumentListenerTask = nil
+        listenerRetryTask?.cancel()
+        listenerRetryTask = nil
+        listenerRetryCount = 0
     }
 
     private func addPendingWrite(_ data: [String: any Sendable]) {
@@ -373,6 +396,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         case listenerSuccess(documentId: String)
         case listenerEmpty(documentId: String)
         case listenerFail(documentId: String, error: Error)
+        case listenerRetrying(documentId: String, retryCount: Int, delaySeconds: Double)
         case listenerStopped
         case saveStart(documentId: String)
         case saveSuccess(documentId: String)
@@ -397,6 +421,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
             case .listenerSuccess:              return "DocManS_listener_success"
             case .listenerEmpty:                return "DocManS_listener_empty"
             case .listenerFail:                 return "DocManS_listener_fail"
+            case .listenerRetrying:             return "DocManS_listener_retrying"
             case .listenerStopped:              return "DocManS_listener_stopped"
             case .saveStart:                    return "DocManS_save_start"
             case .saveSuccess:                  return "DocManS_save_success"
@@ -432,6 +457,10 @@ open class DocumentManagerSync<T: DataModelProtocol> {
                  .deleteFail(let documentId, let error):
                 dict["document_id"] = documentId
                 dict.merge(error.eventParameters)
+            case .listenerRetrying(let documentId, let retryCount, let delaySeconds):
+                dict["document_id"] = documentId
+                dict["retry_count"] = retryCount
+                dict["delay_seconds"] = delaySeconds
             case .pendingWriteAdded(let count):
                 dict["pending_write_count"] = count
             case .syncPendingWritesStart(let count):
