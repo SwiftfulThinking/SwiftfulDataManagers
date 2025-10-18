@@ -47,19 +47,19 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
 
     // MARK: - Public Methods
 
-    /// Fetch a document by ID
+    /// Get a document by ID from remote
     /// - Parameter id: The document ID
     /// - Returns: The document
-    /// - Throws: Error if fetch fails
-    open func fetchDocument(id: String) async throws -> T {
-        logger?.trackEvent(event: Event.fetchStart(documentId: id))
+    /// - Throws: Error if get fails
+    open func getDocument(id: String) async throws -> T {
+        logger?.trackEvent(event: Event.getStart(documentId: id))
 
         do {
             let document = try await remote.getDocument(id: id)
-            logger?.trackEvent(event: Event.fetchSuccess(documentId: id))
+            logger?.trackEvent(event: Event.getSuccess(documentId: id))
             return document
         } catch {
-            logger?.trackEvent(event: Event.fetchFail(documentId: id, error: error))
+            logger?.trackEvent(event: Event.getFail(documentId: id, error: error))
             throw error
         }
     }
@@ -114,9 +114,9 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
     // MARK: - Events
 
     enum Event: DataLogEvent {
-        case fetchStart(documentId: String)
-        case fetchSuccess(documentId: String)
-        case fetchFail(documentId: String, error: Error)
+        case getStart(documentId: String)
+        case getSuccess(documentId: String)
+        case getFail(documentId: String, error: Error)
         case saveStart(documentId: String)
         case saveSuccess(documentId: String)
         case saveFail(documentId: String, error: Error)
@@ -129,9 +129,9 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
 
         var eventName: String {
             switch self {
-            case .fetchStart:               return "DocManA_fetch_start"
-            case .fetchSuccess:             return "DocManA_fetch_success"
-            case .fetchFail:                return "DocManA_fetch_fail"
+            case .getStart:                 return "DocManA_get_start"
+            case .getSuccess:               return "DocManA_get_success"
+            case .getFail:                  return "DocManA_get_fail"
             case .saveStart:                return "DocManA_save_start"
             case .saveSuccess:              return "DocManA_save_success"
             case .saveFail:                 return "DocManA_save_fail"
@@ -148,12 +148,12 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
-            case .fetchStart(let documentId), .fetchSuccess(let documentId),
+            case .getStart(let documentId), .getSuccess(let documentId),
                  .saveStart(let documentId), .saveSuccess(let documentId),
                  .updateStart(let documentId), .updateSuccess(let documentId),
                  .deleteStart(let documentId), .deleteSuccess(let documentId):
                 dict["document_id"] = documentId
-            case .fetchFail(let documentId, let error), .saveFail(let documentId, let error),
+            case .getFail(let documentId, let error), .saveFail(let documentId, let error),
                  .updateFail(let documentId, let error), .deleteFail(let documentId, let error):
                 dict["document_id"] = documentId
                 dict.merge(error.eventParameters)
@@ -164,7 +164,7 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .fetchFail, .saveFail, .updateFail, .deleteFail:
+            case .getFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info

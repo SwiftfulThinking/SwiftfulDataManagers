@@ -120,50 +120,24 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         }
     }
 
-    /// Fetch the collection once without starting a listener
-    /// - Returns: The collection
-    /// - Throws: Error if fetch fails
-    open func fetchCollection() async throws -> [T] {
-        defer {
-            if listenerFailedToAttach {
-                startListener()
-            }
-        }
-
-        logger?.trackEvent(event: Event.fetchStart)
-
-        do {
-            let collection = try await remote.getCollection()
-            handleCollectionUpdate(collection)
-            logger?.trackEvent(event: Event.fetchSuccess(count: collection.count))
-            return collection
-        } catch {
-            logger?.trackEvent(event: Event.fetchFail(error: error))
-            throw error
-        }
+    /// Get the entire collection synchronously from cache
+    /// - Returns: Array of all documents in the collection
+    public func getCollection() -> [T] {
+        return currentCollection
     }
 
-    /// Fetch a single document by ID
+    /// Get a single document by ID synchronously from cache
     /// - Parameter id: The document ID
-    /// - Returns: The document
-    /// - Throws: Error if fetch fails
-    open func fetchDocument(id: String) async throws -> T {
-        defer {
-            if listenerFailedToAttach {
-                startListener()
-            }
-        }
+    /// - Returns: The document if found, nil otherwise
+    public func getDocument(id: String) -> T? {
+        return currentCollection.first { $0.id == id }
+    }
 
-        logger?.trackEvent(event: Event.fetchDocumentStart(documentId: id))
-
-        do {
-            let document = try await remote.getDocument(id: id)
-            logger?.trackEvent(event: Event.fetchDocumentSuccess(documentId: id))
-            return document
-        } catch {
-            logger?.trackEvent(event: Event.fetchDocumentFail(documentId: id, error: error))
-            throw error
-        }
+    /// Get documents filtered by a condition
+    /// - Parameter predicate: Filtering condition
+    /// - Returns: Filtered array of documents
+    public func getDocuments(where predicate: (T) -> Bool) -> [T] {
+        return currentCollection.filter(predicate)
     }
 
     /// Save a complete document
@@ -367,12 +341,6 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         case listenerSuccess(count: Int)
         case listenerFail(error: Error)
         case listenerStopped
-        case fetchStart
-        case fetchSuccess(count: Int)
-        case fetchFail(error: Error)
-        case fetchDocumentStart(documentId: String)
-        case fetchDocumentSuccess(documentId: String)
-        case fetchDocumentFail(documentId: String, error: Error)
         case saveStart(documentId: String)
         case saveSuccess(documentId: String)
         case saveFail(documentId: String, error: Error)
@@ -395,12 +363,6 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             case .listenerSuccess:              return "ColManS_listener_success"
             case .listenerFail:                 return "ColManS_listener_fail"
             case .listenerStopped:              return "ColManS_listener_stopped"
-            case .fetchStart:                   return "ColManS_fetch_start"
-            case .fetchSuccess:                 return "ColManS_fetch_success"
-            case .fetchFail:                    return "ColManS_fetch_fail"
-            case .fetchDocumentStart:           return "ColManS_fetch_document_start"
-            case .fetchDocumentSuccess:         return "ColManS_fetch_document_success"
-            case .fetchDocumentFail:            return "ColManS_fetch_document_fail"
             case .saveStart:                    return "ColManS_save_start"
             case .saveSuccess:                  return "ColManS_save_success"
             case .saveFail:                     return "ColManS_save_fail"
@@ -423,16 +385,15 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
-            case .listenerSuccess(let count), .fetchSuccess(let count), .collectionUpdated(let count):
+            case .listenerSuccess(let count), .collectionUpdated(let count):
                 dict["count"] = count
-            case .listenerFail(let error), .fetchFail(let error):
+            case .listenerFail(let error):
                 dict.merge(error.eventParameters)
-            case .fetchDocumentStart(let documentId), .fetchDocumentSuccess(let documentId),
-                 .saveStart(let documentId), .saveSuccess(let documentId),
+            case .saveStart(let documentId), .saveSuccess(let documentId),
                  .updateStart(let documentId), .updateSuccess(let documentId),
                  .deleteStart(let documentId), .deleteSuccess(let documentId):
                 dict["document_id"] = documentId
-            case .fetchDocumentFail(let documentId, let error), .saveFail(let documentId, let error),
+            case .saveFail(let documentId, let error),
                  .updateFail(let documentId, let error), .deleteFail(let documentId, let error):
                 dict["document_id"] = documentId
                 dict.merge(error.eventParameters)
@@ -455,7 +416,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .listenerFail, .fetchFail, .fetchDocumentFail, .saveFail, .updateFail, .deleteFail:
+            case .listenerFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info

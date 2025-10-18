@@ -134,31 +134,20 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         }
     }
 
-    /// Fetch the document once without starting a listener
+    /// Get the current document synchronously from cache
+    /// - Returns: The cached document, or nil if not available
+    public func getDocument() -> T? {
+        return currentDocument
+    }
+
+    /// Get the current document or throw if not available
     /// - Returns: The document
-    /// - Throws: Error if fetch fails or no document ID
-    open func fetchDocument() async throws -> T {
-        guard let documentId else {
-            throw DataManagerError.noDocumentId
+    /// - Throws: Error if no document available
+    public func getDocumentOrThrow() throws -> T {
+        guard let document = currentDocument else {
+            throw DataManagerError.documentNotFound
         }
-
-        defer {
-            if listenerFailedToAttach {
-                startListener()
-            }
-        }
-
-        logger?.trackEvent(event: Event.fetchStart(documentId: documentId))
-
-        do {
-            let document = try await remote.getDocument(id: documentId)
-            handleDocumentUpdate(document)
-            logger?.trackEvent(event: Event.fetchSuccess(documentId: documentId))
-            return document
-        } catch {
-            logger?.trackEvent(event: Event.fetchFail(documentId: documentId, error: error))
-            throw error
-        }
+        return document
     }
 
     /// Save a complete document
@@ -385,9 +374,6 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         case listenerEmpty(documentId: String)
         case listenerFail(documentId: String, error: Error)
         case listenerStopped
-        case fetchStart(documentId: String)
-        case fetchSuccess(documentId: String)
-        case fetchFail(documentId: String, error: Error)
         case saveStart(documentId: String)
         case saveSuccess(documentId: String)
         case saveFail(documentId: String, error: Error)
@@ -412,9 +398,6 @@ open class DocumentManagerSync<T: DataModelProtocol> {
             case .listenerEmpty:                return "DocManS_listener_empty"
             case .listenerFail:                 return "DocManS_listener_fail"
             case .listenerStopped:              return "DocManS_listener_stopped"
-            case .fetchStart:                   return "DocManS_fetch_start"
-            case .fetchSuccess:                 return "DocManS_fetch_success"
-            case .fetchFail:                    return "DocManS_fetch_fail"
             case .saveStart:                    return "DocManS_save_start"
             case .saveSuccess:                  return "DocManS_save_success"
             case .saveFail:                     return "DocManS_save_fail"
@@ -439,13 +422,12 @@ open class DocumentManagerSync<T: DataModelProtocol> {
 
             switch self {
             case .listenerStart(let documentId), .listenerSuccess(let documentId), .listenerEmpty(let documentId),
-                 .fetchStart(let documentId), .fetchSuccess(let documentId),
                  .saveStart(let documentId), .saveSuccess(let documentId),
                  .updateStart(let documentId), .updateSuccess(let documentId),
                  .deleteStart(let documentId), .deleteSuccess(let documentId),
                  .documentUpdated(let documentId):
                 dict["document_id"] = documentId
-            case .listenerFail(let documentId, let error), .fetchFail(let documentId, let error),
+            case .listenerFail(let documentId, let error),
                  .saveFail(let documentId, let error), .updateFail(let documentId, let error),
                  .deleteFail(let documentId, let error):
                 dict["document_id"] = documentId
@@ -466,7 +448,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .listenerFail, .fetchFail, .saveFail, .updateFail, .deleteFail:
+            case .listenerFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info

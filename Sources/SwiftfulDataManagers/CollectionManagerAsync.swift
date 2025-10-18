@@ -47,35 +47,35 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
 
     // MARK: - Public Methods
 
-    /// Fetch the entire collection
+    /// Get the entire collection from remote
     /// - Returns: Array of all documents
-    /// - Throws: Error if fetch fails
-    open func fetchCollection() async throws -> [T] {
-        logger?.trackEvent(event: Event.fetchStart)
+    /// - Throws: Error if get fails
+    open func getCollection() async throws -> [T] {
+        logger?.trackEvent(event: Event.getCollectionStart)
 
         do {
             let collection = try await remote.getCollection()
-            logger?.trackEvent(event: Event.fetchSuccess(count: collection.count))
+            logger?.trackEvent(event: Event.getCollectionSuccess(count: collection.count))
             return collection
         } catch {
-            logger?.trackEvent(event: Event.fetchFail(error: error))
+            logger?.trackEvent(event: Event.getCollectionFail(error: error))
             throw error
         }
     }
 
-    /// Fetch a single document by ID
+    /// Get a single document by ID from remote
     /// - Parameter id: The document ID
     /// - Returns: The document
-    /// - Throws: Error if fetch fails
-    open func fetchDocument(id: String) async throws -> T {
-        logger?.trackEvent(event: Event.fetchDocumentStart(documentId: id))
+    /// - Throws: Error if get fails
+    open func getDocument(id: String) async throws -> T {
+        logger?.trackEvent(event: Event.getDocumentStart(documentId: id))
 
         do {
             let document = try await remote.getDocument(id: id)
-            logger?.trackEvent(event: Event.fetchDocumentSuccess(documentId: id))
+            logger?.trackEvent(event: Event.getDocumentSuccess(documentId: id))
             return document
         } catch {
-            logger?.trackEvent(event: Event.fetchDocumentFail(documentId: id, error: error))
+            logger?.trackEvent(event: Event.getDocumentFail(documentId: id, error: error))
             throw error
         }
     }
@@ -130,12 +130,12 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     // MARK: - Events
 
     enum Event: DataLogEvent {
-        case fetchStart
-        case fetchSuccess(count: Int)
-        case fetchFail(error: Error)
-        case fetchDocumentStart(documentId: String)
-        case fetchDocumentSuccess(documentId: String)
-        case fetchDocumentFail(documentId: String, error: Error)
+        case getCollectionStart
+        case getCollectionSuccess(count: Int)
+        case getCollectionFail(error: Error)
+        case getDocumentStart(documentId: String)
+        case getDocumentSuccess(documentId: String)
+        case getDocumentFail(documentId: String, error: Error)
         case saveStart(documentId: String)
         case saveSuccess(documentId: String)
         case saveFail(documentId: String, error: Error)
@@ -148,12 +148,12 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
 
         var eventName: String {
             switch self {
-            case .fetchStart:               return "ColManA_fetch_start"
-            case .fetchSuccess:             return "ColManA_fetch_success"
-            case .fetchFail:                return "ColManA_fetch_fail"
-            case .fetchDocumentStart:       return "ColManA_fetch_document_start"
-            case .fetchDocumentSuccess:     return "ColManA_fetch_document_success"
-            case .fetchDocumentFail:        return "ColManA_fetch_document_fail"
+            case .getCollectionStart:       return "ColManA_get_collection_start"
+            case .getCollectionSuccess:     return "ColManA_get_collection_success"
+            case .getCollectionFail:        return "ColManA_get_collection_fail"
+            case .getDocumentStart:         return "ColManA_get_document_start"
+            case .getDocumentSuccess:       return "ColManA_get_document_success"
+            case .getDocumentFail:          return "ColManA_get_document_fail"
             case .saveStart:                return "ColManA_save_start"
             case .saveSuccess:              return "ColManA_save_success"
             case .saveFail:                 return "ColManA_save_fail"
@@ -170,16 +170,16 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
-            case .fetchSuccess(let count):
+            case .getCollectionSuccess(let count):
                 dict["count"] = count
-            case .fetchFail(let error):
+            case .getCollectionFail(let error):
                 dict.merge(error.eventParameters)
-            case .fetchDocumentStart(let documentId), .fetchDocumentSuccess(let documentId),
+            case .getDocumentStart(let documentId), .getDocumentSuccess(let documentId),
                  .saveStart(let documentId), .saveSuccess(let documentId),
                  .updateStart(let documentId), .updateSuccess(let documentId),
                  .deleteStart(let documentId), .deleteSuccess(let documentId):
                 dict["document_id"] = documentId
-            case .fetchDocumentFail(let documentId, let error), .saveFail(let documentId, let error),
+            case .getDocumentFail(let documentId, let error), .saveFail(let documentId, let error),
                  .updateFail(let documentId, let error), .deleteFail(let documentId, let error):
                 dict["document_id"] = documentId
                 dict.merge(error.eventParameters)
@@ -192,7 +192,7 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .fetchFail, .fetchDocumentFail, .saveFail, .updateFail, .deleteFail:
+            case .getCollectionFail, .getDocumentFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info
