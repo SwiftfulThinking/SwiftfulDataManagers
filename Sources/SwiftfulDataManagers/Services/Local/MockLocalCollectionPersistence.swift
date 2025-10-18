@@ -12,12 +12,14 @@ public final class MockLocalCollectionPersistence<T: DataModelProtocol>: LocalCo
 
     // MARK: - Properties
 
+    private let managerKey: String
     private var cachedCollection: [T] = []
     private var cachedPendingWrites: [[String: any Sendable]] = []
 
     // MARK: - Initialization
 
-    public init(collection: [T] = []) {
+    public init(managerKey: String, collection: [T] = []) {
+        self.managerKey = managerKey
         self.cachedCollection = collection
     }
 

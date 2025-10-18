@@ -66,7 +66,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     public init(
         remote: any RemoteDocumentService<T>,
         local: any LocalDocumentPersistence<T>,
-        configuration: DataManagerConfiguration = DataManagerConfiguration(),
+        configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil
     ) {
         self.remote = remote

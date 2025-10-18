@@ -65,7 +65,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     public init(
         remote: any RemoteCollectionService<T>,
         local: any LocalCollectionPersistence<T>,
-        configuration: DataManagerConfiguration = DataManagerConfiguration(),
+        configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil
     ) {
         self.remote = remote

@@ -12,13 +12,15 @@ public final class MockLocalDocumentPersistence<T: DataModelProtocol>: LocalDocu
 
     // MARK: - Properties
 
+    private let managerKey: String
     private var cachedDocument: T?
     private var cachedDocumentId: String?
     private var cachedPendingWrites: [[String: any Sendable]] = []
 
     // MARK: - Initialization
 
-    public init(document: T? = nil) {
+    public init(managerKey: String, document: T? = nil) {
+        self.managerKey = managerKey
         self.cachedDocument = document
         self.cachedDocumentId = document?.id
     }

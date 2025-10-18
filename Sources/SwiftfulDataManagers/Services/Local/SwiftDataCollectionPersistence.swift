@@ -10,13 +10,15 @@ import SwiftData
 
 public final class SwiftDataCollectionPersistence<T: DataModelProtocol>: LocalCollectionPersistence {
 
+    private let managerKey: String
     private let container: ModelContainer
 
     private var mainContext: ModelContext {
         container.mainContext
     }
 
-    public init() {
+    public init(managerKey: String) {
+        self.managerKey = managerKey
         // swiftlint:disable:next force_try
         self.container = try! ModelContainer(for: DocumentEntity<T>.self)
     }
@@ -74,7 +76,7 @@ public final class SwiftDataCollectionPersistence<T: DataModelProtocol>: LocalCo
 
     private func pendingWritesFileURL() -> URL {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documentsDirectory.appendingPathComponent("CollectionManager_PendingWrites_\(T.self).json")
+        return documentsDirectory.appendingPathComponent("CollectionManager_PendingWrites_\(managerKey).json")
     }
 
     public func savePendingWrites(_ writes: [[String: any Sendable]]) throws {
