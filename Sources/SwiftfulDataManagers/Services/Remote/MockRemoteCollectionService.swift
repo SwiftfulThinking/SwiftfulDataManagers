@@ -14,7 +14,8 @@ public final class MockRemoteCollectionService<T: DataModelProtocol>: RemoteColl
     // MARK: - Properties
 
     private var currentCollection: [T] = []
-    private var continuation: AsyncThrowingStream<[T], Error>.Continuation?
+    private var updatesContinuation: AsyncThrowingStream<T, Error>.Continuation?
+    private var deletionsContinuation: AsyncThrowingStream<String, Error>.Continuation?
 
     // MARK: - Initialization
 
@@ -48,32 +49,48 @@ public final class MockRemoteCollectionService<T: DataModelProtocol>: RemoteColl
             currentCollection.append(model)
         }
 
-        continuation?.yield(currentCollection)
+        updatesContinuation?.yield(model)
     }
 
     public func updateDocument(id: String, data: [String: any Sendable]) async throws {
         try await Task.sleep(for: .seconds(0.5))
 
-        guard currentCollection.contains(where: { $0.id == id }) else {
+        guard let document = currentCollection.first(where: { $0.id == id }) else {
             throw MockError.documentNotFound
         }
 
-        continuation?.yield(currentCollection)
+        updatesContinuation?.yield(document)
     }
 
-    public nonisolated func streamCollection() -> AsyncThrowingStream<[T], Error> {
-        AsyncThrowingStream { continuation in
+    public nonisolated func streamCollectionUpdates() -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    ) {
+        let updates = AsyncThrowingStream<T, Error> { continuation in
             Task { @MainActor in
-                self.continuation = continuation
-                continuation.yield(self.currentCollection)
+                self.updatesContinuation = continuation
 
                 continuation.onTermination = { @Sendable _ in
                     Task { @MainActor in
-                        self.continuation = nil
+                        self.updatesContinuation = nil
                     }
                 }
             }
         }
+
+        let deletions = AsyncThrowingStream<String, Error> { continuation in
+            Task { @MainActor in
+                self.deletionsContinuation = continuation
+
+                continuation.onTermination = { @Sendable _ in
+                    Task { @MainActor in
+                        self.deletionsContinuation = nil
+                    }
+                }
+            }
+        }
+
+        return (updates, deletions)
     }
 
     public func deleteDocument(id: String) async throws {
@@ -83,8 +100,9 @@ public final class MockRemoteCollectionService<T: DataModelProtocol>: RemoteColl
             throw MockError.documentNotFound
         }
 
+        let documentId = currentCollection[index].id
         currentCollection.remove(at: index)
-        continuation?.yield(currentCollection)
+        deletionsContinuation?.yield(documentId)
     }
 
     // MARK: - Mock Error

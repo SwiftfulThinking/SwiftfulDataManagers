@@ -51,10 +51,13 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Throws: Error if update fails
     func updateDocument(id: String, data: [String: any Sendable]) async throws
 
-    /// Stream real-time updates for the entire collection
-    /// - Returns: An async stream of collection updates (entire array)
-    /// - Note: Follows ProgressManager pattern - bulk load all, then stream changes
-    func streamCollection() -> AsyncThrowingStream<[T], Error>
+    /// Stream real-time updates for individual documents in the collection
+    /// - Returns: Tuple of (updates stream, deletions stream)
+    /// - Note: Updates stream yields individual document changes, deletions stream yields document IDs
+    func streamCollectionUpdates() -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    )
 
     /// Delete a document
     /// - Parameter id: The document's unique identifier

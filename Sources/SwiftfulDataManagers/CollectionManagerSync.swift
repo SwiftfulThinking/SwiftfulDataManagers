@@ -94,7 +94,8 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             await syncPendingWrites()
         }
 
-        // Start listener
+        // Hybrid sync: Bulk load all documents, then stream changes
+        await bulkLoadCollection()
         startListener()
     }
 
@@ -243,41 +244,95 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
     // MARK: - Private Methods
 
+    private func bulkLoadCollection() async {
+        logger?.trackEvent(event: Event.bulkLoadStart(key: configuration.managerKey))
+
+        do {
+            let collection = try await remote.getCollection()
+
+            // Update in-memory collection
+            handleCollectionUpdate(collection)
+
+            logger?.trackEvent(event: Event.bulkLoadSuccess(key: configuration.managerKey, count: collection.count))
+        } catch {
+            logger?.trackEvent(event: Event.bulkLoadFail(key: configuration.managerKey, error: error))
+        }
+    }
+
     private func startListener() {
         logger?.trackEvent(event: Event.listenerStart(key: configuration.managerKey))
         listenerFailedToAttach = false
 
         currentCollectionListenerTask?.cancel()
-        currentCollectionListenerTask = Task {
-            do {
-                let stream = remote.streamCollection()
 
-                for try await collection in stream {
-                    // Reset retry count on successful connection
-                    self.listenerRetryCount = 0
+        let (updates, deletions) = remote.streamCollectionUpdates()
 
-                    handleCollectionUpdate(collection)
-                    logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: collection.count))
+        Task { @MainActor in
+            await handleCollectionUpdates(updates)
+        }
+
+        Task { @MainActor in
+            await handleCollectionDeletions(deletions)
+        }
+    }
+
+    private func handleCollectionUpdates(_ updates: AsyncThrowingStream<T, Error>) async {
+        do {
+            for try await document in updates {
+                // Reset retry count on successful connection
+                self.listenerRetryCount = 0
+
+                // Update or add document in collection
+                if let index = currentCollection.firstIndex(where: { $0.id == document.id }) {
+                    currentCollection[index] = document
+                } else {
+                    currentCollection.append(document)
                 }
-            } catch {
-                logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
-                self.listenerFailedToAttach = true
 
-                // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
-                self.listenerRetryCount += 1
-                let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
+                // Save to local persistence
+                Task {
+                    try? await local.saveCollection(currentCollection)
+                }
 
-                logger?.trackEvent(event: Event.listenerRetrying(key: configuration.managerKey, retryCount: self.listenerRetryCount, delaySeconds: delay))
+                logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
+            }
+        } catch {
+            logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
+            self.listenerFailedToAttach = true
 
-                // Schedule retry with exponential backoff
-                self.listenerRetryTask?.cancel()
-                self.listenerRetryTask = Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(delay))
-                    if !Task.isCancelled && self.listenerFailedToAttach {
-                        self.startListener()
-                    }
+            // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
+            self.listenerRetryCount += 1
+            let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
+
+            logger?.trackEvent(event: Event.listenerRetrying(key: configuration.managerKey, retryCount: self.listenerRetryCount, delaySeconds: delay))
+
+            // Schedule retry with exponential backoff
+            self.listenerRetryTask?.cancel()
+            self.listenerRetryTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(delay))
+                if !Task.isCancelled && self.listenerFailedToAttach {
+                    self.startListener()
                 }
             }
+        }
+    }
+
+    private func handleCollectionDeletions(_ deletions: AsyncThrowingStream<String, Error>) async {
+        do {
+            for try await documentId in deletions {
+                // Remove document from collection
+                currentCollection.removeAll { $0.id == documentId }
+
+                // Save to local persistence
+                Task {
+                    try? await local.saveCollection(currentCollection)
+                }
+
+                logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
+            }
+        } catch {
+            logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
+            self.listenerFailedToAttach = true
         }
     }
 
@@ -364,6 +419,9 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     // MARK: - Events
 
     enum Event: DataLogEvent {
+        case bulkLoadStart(key: String)
+        case bulkLoadSuccess(key: String, count: Int)
+        case bulkLoadFail(key: String, error: Error)
         case listenerStart(key: String)
         case listenerSuccess(key: String, count: Int)
         case listenerFail(key: String, error: Error)
@@ -387,6 +445,9 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
         var eventName: String {
             switch self {
+            case .bulkLoadStart(let key):                   return "\(key)_bulkLoad_start"
+            case .bulkLoadSuccess(let key, _):              return "\(key)_bulkLoad_success"
+            case .bulkLoadFail(let key, _):                 return "\(key)_bulkLoad_fail"
             case .listenerStart(let key):                   return "\(key)_listener_start"
             case .listenerSuccess(let key, _):              return "\(key)_listener_success"
             case .listenerFail(let key, _):                 return "\(key)_listener_fail"
@@ -414,9 +475,9 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
-            case .listenerSuccess(_, let count), .collectionUpdated(_, let count):
+            case .bulkLoadSuccess(_, let count), .listenerSuccess(_, let count), .collectionUpdated(_, let count):
                 dict["count"] = count
-            case .listenerFail(_, let error):
+            case .bulkLoadFail(_, let error), .listenerFail(_, let error):
                 dict.merge(error.eventParameters)
             case .listenerRetrying(_, let retryCount, let delaySeconds):
                 dict["retry_count"] = retryCount
@@ -448,7 +509,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .listenerFail, .saveFail, .updateFail, .deleteFail:
+            case .bulkLoadFail, .listenerFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info
