@@ -24,19 +24,18 @@ struct CollectionManagerSyncTests {
 
     // MARK: - Helper
 
-    func createManager(collection: [TestItem] = []) -> (CollectionManagerSync<TestItem>, MockRemoteCollectionService<TestItem>, MockLocalCollectionPersistence<TestItem>) {
-        let remote = MockRemoteCollectionService<TestItem>(collection: collection)
-        let local = MockLocalCollectionPersistence<TestItem>(managerKey: "test_items", collection: [])
+    func createManager(collection: [TestItem] = []) -> (CollectionManagerSync<TestItem>, MockDMCollectionServices<TestItem>) {
+        let services = MockDMCollectionServices<TestItem>(collection: collection)
         let config = DataManagerConfiguration(managerKey: "test_items")
-        let manager = CollectionManagerSync(remote: remote, local: local, configuration: config, logger: nil)
-        return (manager, remote, local)
+        let manager = CollectionManagerSync(services: services, configuration: config, logger: nil)
+        return (manager, services)
     }
 
     // MARK: - Initialization Tests
 
     @Test("Initialize with empty collection")
     func testInitialization() {
-        let (manager, _, _) = createManager()
+        let (manager, _) = createManager()
         #expect(manager.currentCollection.isEmpty)
     }
 
@@ -46,11 +45,10 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Cached Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Cached Item 2", priority: 2, isCompleted: true)
         ]
-        let local = MockLocalCollectionPersistence<TestItem>(managerKey: "test_items", collection: items)
-        let remote = MockRemoteCollectionService<TestItem>()
+        let services = MockDMCollectionServices<TestItem>(collection: items)
         let config = DataManagerConfiguration(managerKey: "test_items")
 
-        let manager = CollectionManagerSync(remote: remote, local: local, configuration: config, logger: nil)
+        let manager = CollectionManagerSync(services: services, configuration: config, logger: nil)
 
         #expect(manager.currentCollection.count == 2)
         #expect(manager.currentCollection.first?.title == "Cached Item 1")
@@ -64,7 +62,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
 
@@ -80,7 +78,7 @@ struct CollectionManagerSyncTests {
         let items = [
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
         try await Task.sleep(for: .milliseconds(600))
@@ -101,7 +99,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
 
@@ -118,7 +116,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
         _ = try await manager.getCollectionAsync()
@@ -138,7 +136,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
         _ = try await manager.getCollectionAsync()
@@ -158,7 +156,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
 
@@ -178,7 +176,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
 
@@ -194,7 +192,7 @@ struct CollectionManagerSyncTests {
 
     @Test("Save document adds to collection")
     func testSaveDocument() async throws {
-        let (manager, _, _) = createManager()
+        let (manager, _) = createManager()
 
         await manager.logIn()
 
@@ -217,7 +215,7 @@ struct CollectionManagerSyncTests {
         let items = [
             TestItem(id: "1", title: "Original", priority: 1, isCompleted: false)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
         _ = try await manager.getCollectionAsync()
@@ -236,7 +234,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _, _) = createManager(collection: items)
+        let (manager, _) = createManager(collection: items)
 
         await manager.logIn()
         _ = try await manager.getCollectionAsync()
@@ -255,7 +253,7 @@ struct CollectionManagerSyncTests {
 
     @Test("Get document handles not found error")
     func testGetDocumentNotFound() async throws {
-        let (manager, _, _) = createManager()
+        let (manager, _) = createManager()
 
         await manager.logIn()
 
@@ -269,7 +267,7 @@ struct CollectionManagerSyncTests {
 
     @Test("Delete document handles not found error")
     func testDeleteDocumentNotFound() async throws {
-        let (manager, _, _) = createManager()
+        let (manager, _) = createManager()
 
         await manager.logIn()
 

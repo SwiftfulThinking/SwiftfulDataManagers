@@ -57,20 +57,18 @@ open class DocumentManagerSync<T: DMProtocol> {
 
     // MARK: - Initialization
 
-    /// Initialize the DocumentManagerSync
+    /// Initialize the DocumentManagerSync using services pattern
     /// - Parameters:
-    ///   - remote: Remote document service
-    ///   - local: Local document persistence
+    ///   - services: Combined remote and local services
     ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
-    public init(
-        remote: any RemoteDocumentService<T>,
-        local: any LocalDocumentPersistence<T>,
+    public init<S: DMDocumentServices>(
+        services: S,
         configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil
-    ) {
-        self.remote = remote
-        self.local = local
+    ) where S.T == T {
+        self.remote = services.remote
+        self.local = services.local
         self.configuration = configuration
         self.logger = logger
 
@@ -82,24 +80,6 @@ open class DocumentManagerSync<T: DMProtocol> {
         if configuration.enablePendingWrites {
             self.pendingWrites = (try? local.getPendingWrites()) ?? []
         }
-    }
-
-    /// Initialize the DocumentManagerSync using services pattern
-    /// - Parameters:
-    ///   - services: Combined remote and local services
-    ///   - configuration: Manager configuration
-    ///   - logger: Optional logger for analytics
-    public convenience init<S: DMDocumentServices>(
-        services: S,
-        configuration: DataManagerConfiguration,
-        logger: (any DataLogger)? = nil
-    ) where S.T == T {
-        self.init(
-            remote: services.remote,
-            local: services.local,
-            configuration: configuration,
-            logger: logger
-        )
     }
 
     // MARK: - Public Methods

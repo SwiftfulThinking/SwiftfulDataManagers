@@ -24,30 +24,28 @@ struct DocumentManagerSyncTests {
 
     // MARK: - Helper
 
-    func createManager(document: TestUser? = nil) -> (DocumentManagerSync<TestUser>, MockRemoteDocumentService<TestUser>, MockLocalDocumentPersistence<TestUser>) {
-        let remote = MockRemoteDocumentService<TestUser>(document: document)
-        let local = MockLocalDocumentPersistence<TestUser>(managerKey: "test_user", document: nil)
+    func createManager(document: TestUser? = nil) -> (DocumentManagerSync<TestUser>, MockDMDocumentServices<TestUser>) {
+        let services = MockDMDocumentServices<TestUser>(document: document)
         let config = DataManagerConfiguration(managerKey: "test_user")
-        let manager = DocumentManagerSync(remote: remote, local: local, configuration: config, logger: nil)
-        return (manager, remote, local)
+        let manager = DocumentManagerSync(services: services, configuration: config, logger: nil)
+        return (manager, services)
     }
 
     // MARK: - Initialization Tests
 
     @Test("Initialize with nil document")
     func testInitialization() {
-        let (manager, _, _) = createManager()
+        let (manager, _) = createManager()
         #expect(manager.currentDocument == nil)
     }
 
     @Test("Initialize with cached document from local persistence")
     func testInitializationWithCache() {
         let user = TestUser(id: "user_123", name: "Cached", age: 30, email: "cached@example.com")
-        let local = MockLocalDocumentPersistence<TestUser>(managerKey: "test_user", document: user)
-        let remote = MockRemoteDocumentService<TestUser>()
+        let services = MockDMDocumentServices<TestUser>(document: user)
         let config = DataManagerConfiguration(managerKey: "test_user")
 
-        let manager = DocumentManagerSync(remote: remote, local: local, configuration: config, logger: nil)
+        let manager = DocumentManagerSync(services: services, configuration: config, logger: nil)
 
         #expect(manager.currentDocument?.name == "Cached")
         #expect(manager.currentDocument?.age == 30)
@@ -58,7 +56,7 @@ struct DocumentManagerSyncTests {
     @Test("Log in starts listener and fetches document")
     func testLogIn() async throws {
         let user = TestUser(id: "user_123", name: "John", age: 30, email: "john@example.com")
-        let (manager, remote, _) = createManager(document: user)
+        let (manager, _) = createManager(document: user)
 
         try await manager.logIn("user_123")
 
@@ -71,7 +69,7 @@ struct DocumentManagerSyncTests {
     @Test("Log out clears document")
     func testLogOut() async throws {
         let user = TestUser(id: "user_123", name: "Jane", age: 25, email: "jane@example.com")
-        let (manager, _, _) = createManager(document: user)
+        let (manager, _) = createManager(document: user)
 
         try await manager.logIn("user_123")
         try await Task.sleep(for: .milliseconds(100))
@@ -88,7 +86,7 @@ struct DocumentManagerSyncTests {
     @Test("Get document async fetches from remote")
     func testGetDocumentAsync() async throws {
         let user = TestUser(id: "user_123", name: "Alice", age: 28, email: "alice@example.com")
-        let (manager, _, _) = createManager(document: user)
+        let (manager, _) = createManager(document: user)
 
         try await manager.logIn("user_123")
 
@@ -102,7 +100,7 @@ struct DocumentManagerSyncTests {
     @Test("Get document sync returns current document")
     func testGetDocument() async throws {
         let user = TestUser(id: "user_123", name: "Bob", age: 35, email: "bob@example.com")
-        let (manager, _, _) = createManager(document: user)
+        let (manager, _) = createManager(document: user)
 
         try await manager.logIn("user_123")
         _ = try await manager.getDocumentAsync()
@@ -117,7 +115,7 @@ struct DocumentManagerSyncTests {
 
     @Test("Save document updates remote and local")
     func testSaveDocument() async throws {
-        let (manager, remote, _) = createManager()
+        let (manager, _) = createManager()
 
         let user = TestUser(id: "user_123", name: "Charlie", age: 40, email: "charlie@example.com")
 
@@ -136,7 +134,7 @@ struct DocumentManagerSyncTests {
     @Test("Update document sends partial updates")
     func testUpdateDocument() async throws {
         let user = TestUser(id: "user_123", name: "Dave", age: 32, email: "dave@example.com")
-        let (manager, _, _) = createManager(document: user)
+        let (manager, _) = createManager(document: user)
 
         try await manager.logIn("user_123")
 
@@ -151,7 +149,7 @@ struct DocumentManagerSyncTests {
     @Test("Delete document removes from remote")
     func testDeleteDocument() async throws {
         let user = TestUser(id: "user_123", name: "Eve", age: 27, email: "eve@example.com")
-        let (manager, _, _) = createManager(document: user)
+        let (manager, _) = createManager(document: user)
 
         try await manager.logIn("user_123")
         _ = try await manager.getDocumentAsync()
@@ -170,7 +168,7 @@ struct DocumentManagerSyncTests {
 
     @Test("Get document handles not found error")
     func testGetDocumentNotFound() async throws {
-        let (manager, _, _) = createManager()
+        let (manager, _) = createManager()
 
         try await manager.logIn("nonexistent_id")
 
@@ -184,7 +182,7 @@ struct DocumentManagerSyncTests {
 
     @Test("Delete document handles not found error")
     func testDeleteDocumentNotFound() async throws {
-        let (manager, _, _) = createManager()
+        let (manager, _) = createManager()
 
         try await manager.logIn("nonexistent_id")
 

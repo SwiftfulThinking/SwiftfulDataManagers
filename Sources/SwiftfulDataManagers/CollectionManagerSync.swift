@@ -56,20 +56,18 @@ open class CollectionManagerSync<T: DMProtocol> {
 
     // MARK: - Initialization
 
-    /// Initialize the CollectionManagerSync
+    /// Initialize the CollectionManagerSync using services pattern
     /// - Parameters:
-    ///   - remote: Remote collection service
-    ///   - local: Local collection persistence
+    ///   - services: Combined remote and local services
     ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
-    public init(
-        remote: any RemoteCollectionService<T>,
-        local: any LocalCollectionPersistence<T>,
+    public init<S: DMCollectionServices>(
+        services: S,
         configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil
-    ) {
-        self.remote = remote
-        self.local = local
+    ) where S.T == T {
+        self.remote = services.remote
+        self.local = services.local
         self.configuration = configuration
         self.logger = logger
 
@@ -80,24 +78,6 @@ open class CollectionManagerSync<T: DMProtocol> {
         if configuration.enablePendingWrites {
             self.pendingWrites = (try? local.getPendingWrites()) ?? []
         }
-    }
-
-    /// Initialize the CollectionManagerSync using services pattern
-    /// - Parameters:
-    ///   - services: Combined remote and local services
-    ///   - configuration: Manager configuration
-    ///   - logger: Optional logger for analytics
-    public convenience init<S: DMCollectionServices>(
-        services: S,
-        configuration: DataManagerConfiguration,
-        logger: (any DataLogger)? = nil
-    ) where S.T == T {
-        self.init(
-            remote: services.remote,
-            local: services.local,
-            configuration: configuration,
-            logger: logger
-        )
     }
 
     // MARK: - Public Methods
