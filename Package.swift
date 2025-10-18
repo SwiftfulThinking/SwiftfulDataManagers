@@ -15,11 +15,13 @@ let package = Package(
             targets: ["SwiftfulDataManagers"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/SwiftfulThinking/IdentifiableByString.git", "1.0.0"..<"2.0.0"),
     ],
     targets: [
         .target(
             name: "SwiftfulDataManagers",
             dependencies: [
+                .product(name: "IdentifiableByString", package: "IdentifiableByString"),
             ]
         ),
         .testTarget(

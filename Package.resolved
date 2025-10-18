@@ -1,0 +1,15 @@
+{
+  "originHash" : "114cc00be6b72b8344099f1972edab3817cac062628c519ad32e761cbd6cd2ea",
+  "pins" : [
+    {
+      "identity" : "identifiablebystring",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftfulThinking/IdentifiableByString.git",
+      "state" : {
+        "revision" : "7f4a2fc12758def66e070e772d13db95e1f3afa8",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}

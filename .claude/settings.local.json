@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulGamification/**)",
-      "Bash(git add -A)"
+      "Bash(git add -A)",
+      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulGamificationFirebase/**)",
+      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulDataManagersFirebase/**)",
+      "Bash(swift build)"
     ],
     "deny": [],
     "ask": []

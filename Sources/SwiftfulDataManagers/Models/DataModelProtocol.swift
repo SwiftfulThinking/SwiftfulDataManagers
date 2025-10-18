@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import IdentifiableByString
 
 /// Protocol defining the required properties for a data model.
 ///
@@ -20,7 +21,7 @@ import Foundation
 ///     var inventory: Int
 /// }
 /// ```
-public protocol DataModelProtocol: Identifiable, Codable, Sendable where ID == String {
+public protocol DataModelProtocol: StringIdentifiable, Codable, Sendable {
     /// Unique identifier for the data model
     var id: String { get }
 
