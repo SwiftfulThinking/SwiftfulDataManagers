@@ -44,7 +44,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     internal let remote: any RemoteCollectionService<T>
     internal let local: any LocalCollectionPersistence<T>
     internal let configuration: DataManagerConfiguration
-    internal let logger: (any DataLogger)?
+    public let logger: (any DataLogger)?
 
     // MARK: - Private Properties
 

@@ -1,15 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulGamification/**)",
-      "Bash(git add -A)",
-      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulGamificationFirebase/**)",
-      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulDataManagersFirebase/**)",
-      "Bash(swift build)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nAdd StringIdentifiable conformance to DataModelProtocol\n\nUpdated DataModelProtocol to inherit from StringIdentifiable for Firebase compatibility. Added IdentifiableByString package dependency.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git push)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nAdd Firebase implementations of RemoteDocumentService and RemoteCollectionService\n\nCreated FirebaseRemoteDocumentService and FirebaseRemoteCollectionService following the SwiftfulGamificationFirebase pattern. These services support dynamic collection paths (e.g., \"users\", \"users/data/favorites/\") for flexible Firestore integration.\n\nKey features:\n- Dynamic collection paths for nested documents\n- Real-time streaming via AsyncThrowingStream\n- Full CRUD operations with SwiftfulFirestore integration\n- iOS 17+ and macOS 14+ support\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git commit -m \"$(cat <<''EOF''\nImplement ProgressManager pattern for CollectionManagerSync\n\nUpdated to follow ProgressManager''s hybrid sync pattern:\n1. Bulk load all documents first via remote.getCollection()\n2. Stream individual document updates and deletions\n\nChanges:\n- Updated RemoteCollectionService protocol: replaced streamCollection() with streamCollectionUpdates() that returns (updates, deletions) tuple\n- Updated CollectionManagerSync to handle individual document updates/deletions instead of re-fetching entire collection\n- Updated MockRemoteCollectionService to match new protocol\n- Added bulkLoadStart/Success/Fail events\n- Updates stream yields individual documents (added/modified)\n- Deletions stream yields document IDs (removed)\n\nThis prevents unnecessary full collection fetches and improves performance.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulStarterProject/**)"
     ],
     "deny": [],
     "ask": []
