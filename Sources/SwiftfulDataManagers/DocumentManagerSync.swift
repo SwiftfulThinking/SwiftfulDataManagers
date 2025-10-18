@@ -89,7 +89,7 @@ open class DocumentManagerSync<T: DMProtocol> {
     ///   - services: Combined remote and local services
     ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
-    public convenience init<S: DocumentSyncServices>(
+    public convenience init<S: DMDocumentServices>(
         services: S,
         configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil

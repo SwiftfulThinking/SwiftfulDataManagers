@@ -28,7 +28,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
 
     // MARK: - Internal Properties
 
-    internal let remote: any RemoteCollectionService<T>
+    internal let service: any RemoteCollectionService<T>
     internal let configuration: DataManagerConfiguration
     public let logger: (any DataLogger)?
 
@@ -36,34 +36,17 @@ open class CollectionManagerAsync<T: DMProtocol> {
 
     /// Initialize the CollectionManagerAsync
     /// - Parameters:
-    ///   - remote: Remote collection service
+    ///   - service: Remote collection service
     ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
     public init(
-        remote: any RemoteCollectionService<T>,
+        service: any RemoteCollectionService<T>,
         configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil
     ) {
-        self.remote = remote
+        self.service = service
         self.configuration = configuration
         self.logger = logger
-    }
-
-    /// Initialize the CollectionManagerAsync using services pattern
-    /// - Parameters:
-    ///   - services: Remote service provider
-    ///   - configuration: Manager configuration
-    ///   - logger: Optional logger for analytics
-    public convenience init<S: CollectionAsyncServices>(
-        services: S,
-        configuration: DataManagerConfiguration,
-        logger: (any DataLogger)? = nil
-    ) where S.T == T {
-        self.init(
-            remote: services.remote,
-            configuration: configuration,
-            logger: logger
-        )
     }
 
     // MARK: - Public Methods
@@ -75,7 +58,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.getCollectionStart(key: configuration.managerKey))
 
         do {
-            let collection = try await remote.getCollection()
+            let collection = try await service.getCollection()
             await logger?.trackEvent(event: Event.getCollectionSuccess(key: configuration.managerKey, count: collection.count))
             return collection
         } catch {
@@ -92,7 +75,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.getDocumentStart(key: configuration.managerKey, documentId: id))
 
         do {
-            let document = try await remote.getDocument(id: id)
+            let document = try await service.getDocument(id: id)
             await logger?.trackEvent(event: Event.getDocumentSuccess(key: configuration.managerKey, documentId: id))
             return document
         } catch {
@@ -108,7 +91,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
 
         do {
-            try await remote.saveDocument(document)
+            try await service.saveDocument(document)
             await logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
         } catch {
             await logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
@@ -125,7 +108,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
 
         do {
-            try await remote.updateDocument(id: id, data: data)
+            try await service.updateDocument(id: id, data: data)
             await logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: id))
         } catch {
             await logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: id, error: error))
@@ -140,7 +123,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: id))
 
         do {
-            try await remote.deleteDocument(id: id)
+            try await service.deleteDocument(id: id)
             await logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: id))
         } catch {
             await logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: id, error: error))
@@ -159,7 +142,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filterCount))
 
         do {
-            let documents = try await remote.getDocuments(query: query)
+            let documents = try await service.getDocuments(query: query)
             await logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filterCount))
             return documents
         } catch {

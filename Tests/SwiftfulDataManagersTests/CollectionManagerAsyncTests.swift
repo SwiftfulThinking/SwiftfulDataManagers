@@ -24,10 +24,10 @@ struct CollectionManagerAsyncTests {
     // MARK: - Helper
 
     func createManager(collection: [TestItem] = []) -> (CollectionManagerAsync<TestItem>, MockRemoteCollectionService<TestItem>) {
-        let remote = MockRemoteCollectionService<TestItem>(collection: collection)
+        let service = MockRemoteCollectionService<TestItem>(collection: collection)
         let config = DataManagerConfiguration(managerKey: "test_items")
-        let manager = CollectionManagerAsync(remote: remote, configuration: config, logger: nil)
-        return (manager, remote)
+        let manager = CollectionManagerAsync(service: service, configuration: config, logger: nil)
+        return (manager, service)
     }
 
     // MARK: - Get Collection Tests

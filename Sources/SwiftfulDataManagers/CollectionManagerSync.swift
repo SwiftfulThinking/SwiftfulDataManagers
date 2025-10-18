@@ -87,7 +87,7 @@ open class CollectionManagerSync<T: DMProtocol> {
     ///   - services: Combined remote and local services
     ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
-    public convenience init<S: CollectionSyncServices>(
+    public convenience init<S: DMCollectionServices>(
         services: S,
         configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil

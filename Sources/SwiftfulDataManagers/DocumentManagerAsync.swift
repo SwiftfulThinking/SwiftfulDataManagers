@@ -28,7 +28,7 @@ open class DocumentManagerAsync<T: DMProtocol> {
 
     // MARK: - Internal Properties
 
-    internal let remote: any RemoteDocumentService<T>
+    internal let service: any RemoteDocumentService<T>
     internal let configuration: DataManagerConfiguration
     public let logger: (any DataLogger)?
 
@@ -36,34 +36,17 @@ open class DocumentManagerAsync<T: DMProtocol> {
 
     /// Initialize the DocumentManagerAsync
     /// - Parameters:
-    ///   - remote: Remote document service
+    ///   - service: Remote document service
     ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
     public init(
-        remote: any RemoteDocumentService<T>,
+        service: any RemoteDocumentService<T>,
         configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil
     ) {
-        self.remote = remote
+        self.service = service
         self.configuration = configuration
         self.logger = logger
-    }
-
-    /// Initialize the DocumentManagerAsync using services pattern
-    /// - Parameters:
-    ///   - services: Remote service provider
-    ///   - configuration: Manager configuration
-    ///   - logger: Optional logger for analytics
-    public convenience init<S: DocumentAsyncServices>(
-        services: S,
-        configuration: DataManagerConfiguration,
-        logger: (any DataLogger)? = nil
-    ) where S.T == T {
-        self.init(
-            remote: services.remote,
-            configuration: configuration,
-            logger: logger
-        )
     }
 
     // MARK: - Public Methods
@@ -76,7 +59,7 @@ open class DocumentManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.getStart(key: configuration.managerKey, documentId: id))
 
         do {
-            let document = try await remote.getDocument(id: id)
+            let document = try await service.getDocument(id: id)
             await logger?.trackEvent(event: Event.getSuccess(key: configuration.managerKey, documentId: id))
             return document
         } catch {
@@ -92,7 +75,7 @@ open class DocumentManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
 
         do {
-            try await remote.saveDocument(document)
+            try await service.saveDocument(document)
             await logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
         } catch {
             await logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
@@ -109,7 +92,7 @@ open class DocumentManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
 
         do {
-            try await remote.updateDocument(id: id, data: data)
+            try await service.updateDocument(id: id, data: data)
             await logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: id))
         } catch {
             await logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: id, error: error))
@@ -124,7 +107,7 @@ open class DocumentManagerAsync<T: DMProtocol> {
         await logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: id))
 
         do {
-            try await remote.deleteDocument(id: id)
+            try await service.deleteDocument(id: id)
             await logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: id))
         } catch {
             await logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: id, error: error))
