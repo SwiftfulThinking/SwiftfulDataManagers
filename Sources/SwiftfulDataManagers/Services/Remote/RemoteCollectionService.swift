@@ -64,9 +64,9 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Throws: Error if deletion fails
     func deleteDocument(id: String) async throws
 
-    /// Query documents based on field-value filters
-    /// - Parameter filters: Dictionary of field names to values for exact match queries
-    /// - Returns: Array of documents matching all filters
+    /// Query documents using QueryBuilder
+    /// - Parameter query: QueryBuilder with filter conditions
+    /// - Returns: Array of documents matching all query filters
     /// - Throws: Error if query fails
-    func getDocuments(where filters: [String: any DMCodableSendable]) async throws -> [T]
+    func getDocuments(query: QueryBuilder) async throws -> [T]
 }

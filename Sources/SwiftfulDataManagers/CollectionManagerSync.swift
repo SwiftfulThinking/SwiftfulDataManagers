@@ -213,35 +213,28 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         return collection.filter(predicate)
     }
 
-    /// Query documents based on field-value filters synchronously from cache
-    /// - Parameter filters: Dictionary of field names to values for exact match queries
-    /// - Returns: Filtered array of documents matching all filters
-    /// - Note: This is a local filter on cached data. For remote queries, use getDocumentsAsync(where:)
-    public func getDocuments(where filters: [String: any DMCodableSendable]) -> [T] {
-        // This is a cache-only filter - would need reflection to implement properly
-        // For now, return all documents - subclasses should override for custom filtering
-        return currentCollection
-    }
-
-    /// Query documents based on field-value filters asynchronously from remote
-    /// - Parameter filters: Dictionary of field names to values for exact match queries
-    /// - Returns: Array of documents matching all filters from remote query
+    /// Query documents using QueryBuilder
+    /// - Parameter buildQuery: Closure to build the query
+    /// - Returns: Array of documents matching the query filters from remote
     /// - Throws: Error if query fails
-    public func getDocumentsAsync(where filters: [String: any DMCodableSendable]) async throws -> [T] {
+    public func getDocumentsAsync(buildQuery: (QueryBuilder) -> QueryBuilder) async throws -> [T] {
         defer {
             if listenerFailedToAttach {
                 startListener()
             }
         }
 
-        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filters.count))
+        let query = buildQuery(QueryBuilder())
+        let filterCount = query.getFilters().count
+
+        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filterCount))
 
         do {
-            let documents = try await remote.getDocuments(where: filters)
-            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filters.count))
+            let documents = try await remote.getDocuments(query: query)
+            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filterCount))
             return documents
         } catch {
-            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: configuration.managerKey, filterCount: filters.count, error: error))
+            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: configuration.managerKey, filterCount: filterCount, error: error))
             throw error
         }
     }

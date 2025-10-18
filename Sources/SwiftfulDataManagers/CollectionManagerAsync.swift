@@ -131,19 +131,22 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
         }
     }
 
-    /// Query documents based on field-value filters
-    /// - Parameter filters: Dictionary of field names to values for exact match queries
-    /// - Returns: Array of documents matching all filters from remote query
+    /// Query documents using QueryBuilder
+    /// - Parameter buildQuery: Closure to build the query
+    /// - Returns: Array of documents matching the query filters from remote
     /// - Throws: Error if query fails
-    open func getDocuments(where filters: [String: any DMCodableSendable]) async throws -> [T] {
-        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filters.count))
+    open func getDocuments(buildQuery: (QueryBuilder) -> QueryBuilder) async throws -> [T] {
+        let query = buildQuery(QueryBuilder())
+        let filterCount = query.getFilters().count
+
+        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filterCount))
 
         do {
-            let documents = try await remote.getDocuments(where: filters)
-            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filters.count))
+            let documents = try await remote.getDocuments(query: query)
+            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filterCount))
             return documents
         } catch {
-            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: configuration.managerKey, filterCount: filters.count, error: error))
+            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: configuration.managerKey, filterCount: filterCount, error: error))
             throw error
         }
     }

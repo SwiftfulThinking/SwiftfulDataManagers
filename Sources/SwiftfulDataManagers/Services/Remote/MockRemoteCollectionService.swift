@@ -105,9 +105,9 @@ public final class MockRemoteCollectionService<T: DataModelProtocol>: RemoteColl
         deletionsContinuation?.yield(documentId)
     }
 
-    public func getDocuments(where filters: [String: any DMCodableSendable]) async throws -> [T] {
+    public func getDocuments(query: QueryBuilder) async throws -> [T] {
         try await Task.sleep(for: .seconds(0.5))
-        // Mock implementation returns all documents (filtering not implemented)
+        // Mock implementation returns all documents (query filtering not implemented)
         return currentCollection
     }
 
