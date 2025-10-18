@@ -59,29 +59,24 @@ open class DocumentManagerSync<T: DataModelProtocol> {
 
     /// Initialize the DocumentManagerSync
     /// - Parameters:
-    ///   - documentId: The ID of the document to manage (optional, can be set later)
     ///   - remote: Remote document service
     ///   - local: Local document persistence
     ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
     public init(
-        documentId: String? = nil,
         remote: any RemoteDocumentService<T>,
         local: any LocalDocumentPersistence<T>,
         configuration: DataManagerConfiguration = DataManagerConfiguration(),
         logger: (any DataLogger)? = nil
     ) {
-        self.documentId = documentId
         self.remote = remote
         self.local = local
         self.configuration = configuration
         self.logger = logger
 
-        // Load cached document and document ID
+        // Load cached document and document ID from local storage
         self.currentDocument = try? local.getDocument()
-        if documentId == nil {
-            self.documentId = try? local.getDocumentId()
-        }
+        self.documentId = try? local.getDocumentId()
 
         // Load pending writes if enabled
         if configuration.enablePendingWrites {
@@ -95,11 +90,16 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     /// - Parameter documentId: The document ID to manage
     /// - Throws: Error if no document ID is set
     open func logIn(_ documentId: String) async throws {
-        // Set document ID
-        self.documentId = documentId
-        try? local.saveDocumentId(documentId)
+        // If documentId is changing, log out first to clean up old listeners
+        if self.documentId != documentId {
+            logOut()
+        }
 
-        logger?.trackEvent(event: Event.listenerStart(documentId: documentId))
+        // Only update documentId if it's different
+        if self.documentId != documentId {
+            self.documentId = documentId
+            try? local.saveDocumentId(documentId)
+        }
 
         // Sync pending writes if enabled and available
         if configuration.enablePendingWrites && !pendingWrites.isEmpty {
