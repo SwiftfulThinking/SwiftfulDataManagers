@@ -115,7 +115,9 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             pendingWrites = []
 
             // Clear local persistence
-            try? local.saveCollection([])
+            Task {
+                try? await local.saveCollection([])
+            }
             try? local.savePendingWrites([])
 
             logger?.trackEvent(event: Event.cachesCleared(key: configuration.managerKey))
@@ -233,7 +235,9 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     open func handleCollectionUpdate(_ collection: [T]) {
         currentCollection = collection
 
-        try? local.saveCollection(collection)
+        Task {
+            try? await local.saveCollection(collection)
+        }
         logger?.trackEvent(event: Event.collectionUpdated(key: configuration.managerKey, count: collection.count))
     }
 

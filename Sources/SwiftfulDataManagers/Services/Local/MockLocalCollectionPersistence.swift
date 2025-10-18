@@ -25,7 +25,7 @@ public final class MockLocalCollectionPersistence<T: DataModelProtocol>: LocalCo
 
     // MARK: - LocalCollectionPersistence Implementation
 
-    public func saveCollection(_ collection: [T]) throws {
+    public func saveCollection(_ collection: [T]) async throws {
         cachedCollection = collection
     }
 

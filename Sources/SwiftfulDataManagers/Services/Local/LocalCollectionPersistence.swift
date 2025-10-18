@@ -31,7 +31,7 @@ public protocol LocalCollectionPersistence<T>: Sendable {
     /// Save the entire collection to local storage
     /// - Parameter collection: The collection to save
     /// - Throws: Error if save fails
-    func saveCollection(_ collection: [T]) throws
+    func saveCollection(_ collection: [T]) async throws
 
     /// Retrieve the cached collection from local storage
     /// - Returns: The cached collection

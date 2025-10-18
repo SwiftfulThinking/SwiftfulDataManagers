@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 
+@MainActor
 public final class SwiftDataCollectionPersistence<T: DataModelProtocol>: LocalCollectionPersistence {
 
     private let managerKey: String
@@ -29,21 +30,27 @@ public final class SwiftDataCollectionPersistence<T: DataModelProtocol>: LocalCo
         return try entities.map { try $0.toDocument() }
     }
 
-    public func saveCollection(_ collection: [T]) throws {
+    /// Save entire collection (runs on background thread for better performance)
+    /// Uses batch fetch optimization: deletes all and inserts new in one operation
+    nonisolated public func saveCollection(_ collection: [T]) async throws {
+        // Create background context - this runs off the main actor
+        let backgroundContext = ModelContext(container)
+
         // Delete all existing
         let descriptor = FetchDescriptor<DocumentEntity<T>>()
-        let allEntities = try mainContext.fetch(descriptor)
+        let allEntities = (try? backgroundContext.fetch(descriptor)) ?? []
         for entity in allEntities {
-            mainContext.delete(entity)
+            backgroundContext.delete(entity)
         }
 
         // Insert new collection
         for document in collection {
             let entity = try DocumentEntity.from(document)
-            mainContext.insert(entity)
+            backgroundContext.insert(entity)
         }
 
-        try mainContext.save()
+        // Single save for all operations
+        try backgroundContext.save()
     }
 
     public func saveDocument(_ document: T) throws {
