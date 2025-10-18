@@ -50,6 +50,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
     private var currentCollectionListenerTask: Task<Void, Error>?
     private var pendingWrites: [[String: any Sendable]] = []
+    private var listenerFailedToAttach: Bool = false
 
     // MARK: - Initialization
 
@@ -123,6 +124,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Returns: The collection
     /// - Throws: Error if fetch fails
     open func fetchCollection() async throws -> [T] {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.fetchStart)
 
         do {
@@ -141,6 +148,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Returns: The document
     /// - Throws: Error if fetch fails
     open func fetchDocument(id: String) async throws -> T {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.fetchDocumentStart(documentId: id))
 
         do {
@@ -157,6 +170,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Parameter document: The document to save
     /// - Throws: Error if save fails
     open func saveDocument(_ document: T) async throws {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.saveStart(documentId: document.id))
 
         do {
@@ -179,6 +198,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
     open func updateDocument(id: String, data: [String: any Sendable]) async throws {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.updateStart(documentId: id))
 
         do {
@@ -217,6 +242,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Parameter id: The document ID
     /// - Throws: Error if deletion fails
     open func deleteDocument(id: String) async throws {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.deleteStart(documentId: id))
 
         do {
@@ -244,6 +275,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
     private func startListener() {
         logger?.trackEvent(event: Event.listenerStart)
+        listenerFailedToAttach = false
 
         currentCollectionListenerTask?.cancel()
         currentCollectionListenerTask = Task {
@@ -256,12 +288,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
                 }
             } catch {
                 logger?.trackEvent(event: Event.listenerFail(error: error))
-
-                // Attempt to restart listener after delay
-                try? await Task.sleep(for: .seconds(5))
-                if !Task.isCancelled {
-                    startListener()
-                }
+                self.listenerFailedToAttach = true
             }
         }
     }

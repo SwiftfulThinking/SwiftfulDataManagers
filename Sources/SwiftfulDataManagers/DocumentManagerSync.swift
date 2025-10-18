@@ -51,6 +51,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     private var currentDocumentListenerTask: Task<Void, Error>?
     private var documentId: String?
     private var pendingWrites: [[String: any Sendable]] = []
+    private var listenerFailedToAttach: Bool = false
 
     // MARK: - Initialization
 
@@ -141,6 +142,12 @@ open class DocumentManagerSync<T: DataModelProtocol> {
             throw DataManagerError.noDocumentId
         }
 
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.fetchStart(documentId: documentId))
 
         do {
@@ -158,6 +165,12 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     /// - Parameter document: The document to save
     /// - Throws: Error if save fails
     open func saveDocument(_ document: T) async throws {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.saveStart(documentId: document.id))
 
         do {
@@ -180,6 +193,12 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     open func updateDocument(data: [String: any Sendable]) async throws {
         guard let documentId else {
             throw DataManagerError.noDocumentId
+        }
+
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
         }
 
         logger?.trackEvent(event: Event.updateStart(documentId: documentId))
@@ -218,6 +237,12 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     open func deleteDocument() async throws {
         guard let documentId else {
             throw DataManagerError.noDocumentId
+        }
+
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
         }
 
         logger?.trackEvent(event: Event.deleteStart(documentId: documentId))
@@ -269,6 +294,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         guard let documentId else { return }
 
         logger?.trackEvent(event: Event.listenerStart(documentId: documentId))
+        listenerFailedToAttach = false
 
         currentDocumentListenerTask?.cancel()
         currentDocumentListenerTask = Task {
@@ -286,12 +312,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
                 }
             } catch {
                 logger?.trackEvent(event: Event.listenerFail(documentId: documentId, error: error))
-
-                // Attempt to restart listener after delay
-                try? await Task.sleep(for: .seconds(5))
-                if !Task.isCancelled {
-                    startListener()
-                }
+                self.listenerFailedToAttach = true
             }
         }
     }
