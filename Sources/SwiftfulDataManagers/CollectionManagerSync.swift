@@ -299,7 +299,30 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     }
 
     private func addPendingWrite(_ data: [String: any Sendable]) {
-        pendingWrites.append(data)
+        guard let documentId = data["id"] as? String else {
+            // If no document ID, just append
+            pendingWrites.append(data)
+            try? local.savePendingWrites(pendingWrites)
+            logger?.trackEvent(event: Event.pendingWriteAdded(count: pendingWrites.count))
+            return
+        }
+
+        // Find existing pending write for this document
+        if let existingIndex = pendingWrites.firstIndex(where: { write in
+            guard let writeDocId = write["id"] as? String else { return false }
+            return writeDocId == documentId
+        }) {
+            // Merge new fields into existing write (new values overwrite old)
+            var mergedWrite = pendingWrites[existingIndex]
+            for (key, value) in data where key != "id" {
+                mergedWrite[key] = value
+            }
+            pendingWrites[existingIndex] = mergedWrite
+        } else {
+            // No existing write for this document, add new one
+            pendingWrites.append(data)
+        }
+
         try? local.savePendingWrites(pendingWrites)
         logger?.trackEvent(event: Event.pendingWriteAdded(count: pendingWrites.count))
     }

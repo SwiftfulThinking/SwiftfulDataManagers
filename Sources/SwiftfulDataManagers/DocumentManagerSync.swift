@@ -323,7 +323,19 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     }
 
     private func addPendingWrite(_ data: [String: any Sendable]) {
-        pendingWrites.append(data)
+        // DocumentManagerSync manages a single document, so merge all pending writes
+        if let existingIndex = pendingWrites.indices.last {
+            // Merge new fields into existing write (new values overwrite old)
+            var mergedWrite = pendingWrites[existingIndex]
+            for (key, value) in data {
+                mergedWrite[key] = value
+            }
+            pendingWrites[existingIndex] = mergedWrite
+        } else {
+            // No existing writes, add new one
+            pendingWrites.append(data)
+        }
+
         try? local.savePendingWrites(pendingWrites)
         logger?.trackEvent(event: Event.pendingWriteAdded(count: pendingWrites.count))
     }
