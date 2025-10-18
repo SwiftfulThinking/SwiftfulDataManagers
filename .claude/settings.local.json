@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulStarterProject/**)"
+      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulStarterProject/**)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd UserManager2 using DocumentManagerSync from SwiftfulDataManagers\n\nCreated UserManager2 that inherits from DocumentManagerSync<UserModel> following the same pattern as ProgressManager, StreakManager, and ExperiencePointsManager.\n\nKey features:\n- Extends DocumentManagerSync for single document management\n- Real-time streaming of user document\n- Local persistence with FileManager\n- Custom event logging for user-specific actions\n- Field-specific update methods (saveUserName, saveUserEmail, etc.)\n\nDependencies will handle initialization with services, configuration, and logger.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

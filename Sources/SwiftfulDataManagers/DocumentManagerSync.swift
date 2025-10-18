@@ -152,6 +152,32 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         return document
     }
 
+    /// Get document asynchronously - returns cached if available, otherwise fetches from remote
+    /// - Returns: The document
+    /// - Throws: Error if fetch fails or no document ID set
+    public func getDocumentAsync() async throws -> T {
+        guard let documentId else {
+            throw DataManagerError.noDocumentId
+        }
+
+        // If we have it cached, return it
+        if let currentDocument {
+            return currentDocument
+        }
+
+        // Otherwise fetch from remote
+        logger?.trackEvent(event: Event.getDocumentStart(key: configuration.managerKey, documentId: documentId))
+
+        do {
+            let document = try await remote.getDocument(id: documentId)
+            logger?.trackEvent(event: Event.getDocumentSuccess(key: configuration.managerKey, documentId: documentId))
+            return document
+        } catch {
+            logger?.trackEvent(event: Event.getDocumentFail(key: configuration.managerKey, documentId: documentId, error: error))
+            throw error
+        }
+    }
+
     /// Save a complete document
     /// - Parameter document: The document to save
     /// - Throws: Error if save fails
@@ -392,6 +418,9 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     // MARK: - Events
 
     enum Event: DataLogEvent {
+        case getDocumentStart(key: String, documentId: String)
+        case getDocumentSuccess(key: String, documentId: String)
+        case getDocumentFail(key: String, documentId: String, error: Error)
         case listenerStart(key: String, documentId: String)
         case listenerSuccess(key: String, documentId: String)
         case listenerEmpty(key: String, documentId: String)
@@ -417,6 +446,9 @@ open class DocumentManagerSync<T: DataModelProtocol> {
 
         var eventName: String {
             switch self {
+            case .getDocumentStart(let key, _):             return "\(key)_getDocument_start"
+            case .getDocumentSuccess(let key, _):           return "\(key)_getDocument_success"
+            case .getDocumentFail(let key, _, _):           return "\(key)_getDocument_fail"
             case .listenerStart(let key, _):                return "\(key)_listener_start"
             case .listenerSuccess(let key, _):              return "\(key)_listener_success"
             case .listenerEmpty(let key, _):                return "\(key)_listener_empty"
@@ -446,13 +478,15 @@ open class DocumentManagerSync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
-            case .listenerStart(_, let documentId), .listenerSuccess(_, let documentId), .listenerEmpty(_, let documentId),
+            case .getDocumentStart(_, let documentId), .getDocumentSuccess(_, let documentId),
+                 .listenerStart(_, let documentId), .listenerSuccess(_, let documentId), .listenerEmpty(_, let documentId),
                  .saveStart(_, let documentId), .saveSuccess(_, let documentId),
                  .updateStart(_, let documentId), .updateSuccess(_, let documentId),
                  .deleteStart(_, let documentId), .deleteSuccess(_, let documentId),
                  .documentUpdated(_, let documentId):
                 dict["document_id"] = documentId
-            case .listenerFail(_, let documentId, let error),
+            case .getDocumentFail(_, let documentId, let error),
+                 .listenerFail(_, let documentId, let error),
                  .saveFail(_, let documentId, let error), .updateFail(_, let documentId, let error),
                  .deleteFail(_, let documentId, let error):
                 dict["document_id"] = documentId

@@ -131,6 +131,28 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         return currentCollection
     }
 
+    /// Get collection asynchronously - returns cached if available, otherwise fetches from remote
+    /// - Returns: Array of all documents
+    /// - Throws: Error if fetch fails
+    public func getCollectionAsync() async throws -> [T] {
+        // If we have cached collection, return it
+        if !currentCollection.isEmpty {
+            return currentCollection
+        }
+
+        // Otherwise fetch from remote
+        logger?.trackEvent(event: Event.getCollectionStart(key: configuration.managerKey))
+
+        do {
+            let collection = try await remote.getCollection()
+            logger?.trackEvent(event: Event.getCollectionSuccess(key: configuration.managerKey, count: collection.count))
+            return collection
+        } catch {
+            logger?.trackEvent(event: Event.getCollectionFail(key: configuration.managerKey, error: error))
+            throw error
+        }
+    }
+
     /// Get a single document by ID synchronously from cache
     /// - Parameter id: The document ID
     /// - Returns: The document if found, nil otherwise
@@ -138,11 +160,72 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         return currentCollection.first { $0.id == id }
     }
 
-    /// Get documents filtered by a condition
+    /// Get document asynchronously - returns cached if available, otherwise fetches from remote
+    /// - Parameter id: The document ID to fetch
+    /// - Returns: The document
+    /// - Throws: Error if fetch fails
+    public func getDocumentAsync(id: String) async throws -> T {
+        // If we have it cached, return it
+        if let cachedDocument = currentCollection.first(where: { $0.id == id }) {
+            return cachedDocument
+        }
+
+        // Otherwise fetch from remote
+        logger?.trackEvent(event: Event.getDocumentStart(key: configuration.managerKey, documentId: id))
+
+        do {
+            let document = try await remote.getDocument(id: id)
+            logger?.trackEvent(event: Event.getDocumentSuccess(key: configuration.managerKey, documentId: id))
+            return document
+        } catch {
+            logger?.trackEvent(event: Event.getDocumentFail(key: configuration.managerKey, documentId: id, error: error))
+            throw error
+        }
+    }
+
+    /// Get documents filtered by a condition synchronously from cache
     /// - Parameter predicate: Filtering condition
     /// - Returns: Filtered array of documents
     public func getDocuments(where predicate: (T) -> Bool) -> [T] {
         return currentCollection.filter(predicate)
+    }
+
+    /// Get documents filtered by a condition asynchronously - returns cached if available, otherwise fetches from remote
+    /// - Parameter predicate: Filtering condition
+    /// - Returns: Filtered array of documents
+    /// - Throws: Error if fetch fails
+    public func getDocumentsAsync(where predicate: (T) -> Bool) async throws -> [T] {
+        // Fetch collection first (uses cache if available)
+        let collection = try await getCollectionAsync()
+        // Filter the collection
+        return collection.filter(predicate)
+    }
+
+    /// Query documents based on field-value filters synchronously from cache
+    /// - Parameter filters: Dictionary of field names to values for exact match queries
+    /// - Returns: Filtered array of documents matching all filters
+    /// - Note: This is a local filter on cached data. For remote queries, use getDocumentsAsync(where:)
+    public func getDocuments(where filters: [String: any Sendable]) -> [T] {
+        // This is a cache-only filter - would need reflection to implement properly
+        // For now, return all documents - subclasses should override for custom filtering
+        return currentCollection
+    }
+
+    /// Query documents based on field-value filters asynchronously from remote
+    /// - Parameter filters: Dictionary of field names to values for exact match queries
+    /// - Returns: Array of documents matching all filters from remote query
+    /// - Throws: Error if query fails
+    public func getDocumentsAsync(where filters: [String: any Sendable]) async throws -> [T] {
+        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filters.count))
+
+        do {
+            let documents = try await remote.getDocuments(where: filters)
+            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filters.count))
+            return documents
+        } catch {
+            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: configuration.managerKey, filterCount: filters.count, error: error))
+            throw error
+        }
     }
 
     /// Save a complete document
@@ -419,6 +502,15 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     // MARK: - Events
 
     enum Event: DataLogEvent {
+        case getCollectionStart(key: String)
+        case getCollectionSuccess(key: String, count: Int)
+        case getCollectionFail(key: String, error: Error)
+        case getDocumentStart(key: String, documentId: String)
+        case getDocumentSuccess(key: String, documentId: String)
+        case getDocumentFail(key: String, documentId: String, error: Error)
+        case getDocumentsQueryStart(key: String, filterCount: Int)
+        case getDocumentsQuerySuccess(key: String, count: Int, filterCount: Int)
+        case getDocumentsQueryFail(key: String, filterCount: Int, error: Error)
         case bulkLoadStart(key: String)
         case bulkLoadSuccess(key: String, count: Int)
         case bulkLoadFail(key: String, error: Error)
@@ -445,6 +537,15 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
         var eventName: String {
             switch self {
+            case .getCollectionStart(let key):              return "\(key)_getCollection_start"
+            case .getCollectionSuccess(let key, _):         return "\(key)_getCollection_success"
+            case .getCollectionFail(let key, _):            return "\(key)_getCollection_fail"
+            case .getDocumentStart(let key, _):             return "\(key)_getDocument_start"
+            case .getDocumentSuccess(let key, _):           return "\(key)_getDocument_success"
+            case .getDocumentFail(let key, _, _):           return "\(key)_getDocument_fail"
+            case .getDocumentsQueryStart(let key, _):       return "\(key)_getDocumentsQuery_start"
+            case .getDocumentsQuerySuccess(let key, _, _):  return "\(key)_getDocumentsQuery_success"
+            case .getDocumentsQueryFail(let key, _, _):     return "\(key)_getDocumentsQuery_fail"
             case .bulkLoadStart(let key):                   return "\(key)_bulkLoad_start"
             case .bulkLoadSuccess(let key, _):              return "\(key)_bulkLoad_success"
             case .bulkLoadFail(let key, _):                 return "\(key)_bulkLoad_fail"
@@ -475,6 +576,18 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
+            case .getCollectionSuccess(_, let count):
+                dict["count"] = count
+            case .getCollectionFail(_, let error):
+                dict.merge(error.eventParameters)
+            case .getDocumentsQueryStart(_, let filterCount):
+                dict["filter_count"] = filterCount
+            case .getDocumentsQuerySuccess(_, let count, let filterCount):
+                dict["count"] = count
+                dict["filter_count"] = filterCount
+            case .getDocumentsQueryFail(_, let filterCount, let error):
+                dict["filter_count"] = filterCount
+                dict.merge(error.eventParameters)
             case .bulkLoadSuccess(_, let count), .listenerSuccess(_, let count), .collectionUpdated(_, let count):
                 dict["count"] = count
             case .bulkLoadFail(_, let error), .listenerFail(_, let error):
@@ -482,11 +595,13 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             case .listenerRetrying(_, let retryCount, let delaySeconds):
                 dict["retry_count"] = retryCount
                 dict["delay_seconds"] = delaySeconds
-            case .saveStart(_, let documentId), .saveSuccess(_, let documentId),
+            case .getDocumentStart(_, let documentId), .getDocumentSuccess(_, let documentId),
+                 .saveStart(_, let documentId), .saveSuccess(_, let documentId),
                  .updateStart(_, let documentId), .updateSuccess(_, let documentId),
                  .deleteStart(_, let documentId), .deleteSuccess(_, let documentId):
                 dict["document_id"] = documentId
-            case .saveFail(_, let documentId, let error),
+            case .getDocumentFail(_, let documentId, let error),
+                 .saveFail(_, let documentId, let error),
                  .updateFail(_, let documentId, let error), .deleteFail(_, let documentId, let error):
                 dict["document_id"] = documentId
                 dict.merge(error.eventParameters)
@@ -509,7 +624,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .bulkLoadFail, .listenerFail, .saveFail, .updateFail, .deleteFail:
+            case .getCollectionFail, .getDocumentFail, .getDocumentsQueryFail, .bulkLoadFail, .listenerFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info

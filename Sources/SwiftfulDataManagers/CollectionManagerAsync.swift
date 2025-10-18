@@ -131,6 +131,23 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
         }
     }
 
+    /// Query documents based on field-value filters
+    /// - Parameter filters: Dictionary of field names to values for exact match queries
+    /// - Returns: Array of documents matching all filters from remote query
+    /// - Throws: Error if query fails
+    open func getDocuments(where filters: [String: any Sendable]) async throws -> [T] {
+        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filters.count))
+
+        do {
+            let documents = try await remote.getDocuments(where: filters)
+            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filters.count))
+            return documents
+        } catch {
+            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: configuration.managerKey, filterCount: filters.count, error: error))
+            throw error
+        }
+    }
+
     // MARK: - Events
 
     enum Event: DataLogEvent {
@@ -140,6 +157,9 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
         case getDocumentStart(key: String, documentId: String)
         case getDocumentSuccess(key: String, documentId: String)
         case getDocumentFail(key: String, documentId: String, error: Error)
+        case getDocumentsQueryStart(key: String, filterCount: Int)
+        case getDocumentsQuerySuccess(key: String, count: Int, filterCount: Int)
+        case getDocumentsQueryFail(key: String, filterCount: Int, error: Error)
         case saveStart(key: String, documentId: String)
         case saveSuccess(key: String, documentId: String)
         case saveFail(key: String, documentId: String, error: Error)
@@ -158,6 +178,9 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
             case .getDocumentStart(let key, _):         return "\(key)_getDocument_start"
             case .getDocumentSuccess(let key, _):       return "\(key)_getDocument_success"
             case .getDocumentFail(let key, _, _):       return "\(key)_getDocument_fail"
+            case .getDocumentsQueryStart(let key, _):       return "\(key)_getDocumentsQuery_start"
+            case .getDocumentsQuerySuccess(let key, _, _):  return "\(key)_getDocumentsQuery_success"
+            case .getDocumentsQueryFail(let key, _, _):     return "\(key)_getDocumentsQuery_fail"
             case .saveStart(let key, _):                return "\(key)_save_start"
             case .saveSuccess(let key, _):              return "\(key)_save_success"
             case .saveFail(let key, _, _):              return "\(key)_save_fail"
@@ -178,6 +201,14 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
                 dict["count"] = count
             case .getCollectionFail(_, let error):
                 dict.merge(error.eventParameters)
+            case .getDocumentsQueryStart(_, let filterCount):
+                dict["filter_count"] = filterCount
+            case .getDocumentsQuerySuccess(_, let count, let filterCount):
+                dict["count"] = count
+                dict["filter_count"] = filterCount
+            case .getDocumentsQueryFail(_, let filterCount, let error):
+                dict["filter_count"] = filterCount
+                dict.merge(error.eventParameters)
             case .getDocumentStart(_, let documentId), .getDocumentSuccess(_, let documentId),
                  .saveStart(_, let documentId), .saveSuccess(_, let documentId),
                  .updateStart(_, let documentId), .updateSuccess(_, let documentId),
@@ -196,7 +227,7 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .getCollectionFail, .getDocumentFail, .saveFail, .updateFail, .deleteFail:
+            case .getCollectionFail, .getDocumentFail, .getDocumentsQueryFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info

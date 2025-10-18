@@ -105,6 +105,12 @@ public final class MockRemoteCollectionService<T: DataModelProtocol>: RemoteColl
         deletionsContinuation?.yield(documentId)
     }
 
+    public func getDocuments(where filters: [String: any Sendable]) async throws -> [T] {
+        try await Task.sleep(for: .seconds(0.5))
+        // Mock implementation returns all documents (filtering not implemented)
+        return currentCollection
+    }
+
     // MARK: - Mock Error
 
     enum MockError: LocalizedError {

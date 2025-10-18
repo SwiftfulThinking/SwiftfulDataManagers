@@ -63,4 +63,10 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Parameter id: The document's unique identifier
     /// - Throws: Error if deletion fails
     func deleteDocument(id: String) async throws
+
+    /// Query documents based on field-value filters
+    /// - Parameter filters: Dictionary of field names to values for exact match queries
+    /// - Returns: Array of documents matching all filters
+    /// - Throws: Error if query fails
+    func getDocuments(where filters: [String: any Sendable]) async throws -> [T]
 }
