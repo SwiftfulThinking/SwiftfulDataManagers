@@ -26,7 +26,7 @@ struct DocumentManagerSyncTests {
 
     func createManager(document: TestUser? = nil) -> (DocumentManagerSync<TestUser>, MockDMDocumentServices<TestUser>) {
         let services = MockDMDocumentServices<TestUser>(document: document)
-        let config = DataManagerConfiguration(managerKey: "test_user")
+        let config = DataManagerSyncConfiguration(managerKey: "test_user")
         let manager = DocumentManagerSync(services: services, configuration: config, logger: nil)
         return (manager, services)
     }
@@ -43,7 +43,7 @@ struct DocumentManagerSyncTests {
     func testInitializationWithCache() {
         let user = TestUser(id: "user_123", name: "Cached", age: 30, email: "cached@example.com")
         let services = MockDMDocumentServices<TestUser>(document: user)
-        let config = DataManagerConfiguration(managerKey: "test_user")
+        let config = DataManagerSyncConfiguration(managerKey: "test_user")
 
         let manager = DocumentManagerSync(services: services, configuration: config, logger: nil)
 

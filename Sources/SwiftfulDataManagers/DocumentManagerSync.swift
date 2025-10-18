@@ -43,7 +43,7 @@ open class DocumentManagerSync<T: DMProtocol> {
 
     internal let remote: any RemoteDocumentService<T>
     internal let local: any LocalDocumentPersistence<T>
-    internal let configuration: DataManagerConfiguration
+    internal let configuration: DataManagerSyncConfiguration
     public let logger: (any DataLogger)?
 
     // MARK: - Private Properties
@@ -64,7 +64,7 @@ open class DocumentManagerSync<T: DMProtocol> {
     ///   - logger: Optional logger for analytics
     public init<S: DMDocumentServices>(
         services: S,
-        configuration: DataManagerConfiguration,
+        configuration: DataManagerSyncConfiguration,
         logger: (any DataLogger)? = nil
     ) where S.T == T {
         self.remote = services.remote

@@ -43,7 +43,7 @@ open class CollectionManagerSync<T: DMProtocol> {
 
     internal let remote: any RemoteCollectionService<T>
     internal let local: any LocalCollectionPersistence<T>
-    internal let configuration: DataManagerConfiguration
+    internal let configuration: DataManagerSyncConfiguration
     public let logger: (any DataLogger)?
 
     // MARK: - Private Properties
@@ -63,7 +63,7 @@ open class CollectionManagerSync<T: DMProtocol> {
     ///   - logger: Optional logger for analytics
     public init<S: DMCollectionServices>(
         services: S,
-        configuration: DataManagerConfiguration,
+        configuration: DataManagerSyncConfiguration,
         logger: (any DataLogger)? = nil
     ) where S.T == T {
         self.remote = services.remote

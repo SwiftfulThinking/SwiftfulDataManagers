@@ -29,7 +29,7 @@ open class DocumentManagerAsync<T: DMProtocol> {
     // MARK: - Internal Properties
 
     internal let service: any RemoteDocumentService<T>
-    internal let configuration: DataManagerConfiguration
+    internal let configuration: DataManagerAsyncConfiguration
     public let logger: (any DataLogger)?
 
     // MARK: - Initialization
@@ -41,7 +41,7 @@ open class DocumentManagerAsync<T: DMProtocol> {
     ///   - logger: Optional logger for analytics
     public init(
         service: any RemoteDocumentService<T>,
-        configuration: DataManagerConfiguration,
+        configuration: DataManagerAsyncConfiguration,
         logger: (any DataLogger)? = nil
     ) {
         self.service = service

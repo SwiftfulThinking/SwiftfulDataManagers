@@ -25,7 +25,7 @@ struct CollectionManagerAsyncTests {
 
     func createManager(collection: [TestItem] = []) -> (CollectionManagerAsync<TestItem>, MockRemoteCollectionService<TestItem>) {
         let service = MockRemoteCollectionService<TestItem>(collection: collection)
-        let config = DataManagerConfiguration(managerKey: "test_items")
+        let config = DataManagerAsyncConfiguration(managerKey: "test_items")
         let manager = CollectionManagerAsync(service: service, configuration: config, logger: nil)
         return (manager, service)
     }

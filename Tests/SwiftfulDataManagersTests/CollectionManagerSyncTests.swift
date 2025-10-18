@@ -26,7 +26,7 @@ struct CollectionManagerSyncTests {
 
     func createManager(collection: [TestItem] = []) -> (CollectionManagerSync<TestItem>, MockDMCollectionServices<TestItem>) {
         let services = MockDMCollectionServices<TestItem>(collection: collection)
-        let config = DataManagerConfiguration(managerKey: "test_items")
+        let config = DataManagerSyncConfiguration(managerKey: "test_items")
         let manager = CollectionManagerSync(services: services, configuration: config, logger: nil)
         return (manager, services)
     }
@@ -46,7 +46,7 @@ struct CollectionManagerSyncTests {
             TestItem(id: "2", title: "Cached Item 2", priority: 2, isCompleted: true)
         ]
         let services = MockDMCollectionServices<TestItem>(collection: items)
-        let config = DataManagerConfiguration(managerKey: "test_items")
+        let config = DataManagerSyncConfiguration(managerKey: "test_items")
 
         let manager = CollectionManagerSync(services: services, configuration: config, logger: nil)
 

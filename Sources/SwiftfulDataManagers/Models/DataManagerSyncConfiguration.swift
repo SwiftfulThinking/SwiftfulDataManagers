@@ -1,14 +1,14 @@
 //
-//  DataManagerConfiguration.swift
+//  DataManagerSyncConfiguration.swift
 //  SwiftfulDataManagers
 //
-//  Created by Nick Sarno on 1/17/25.
+//  Created by Nick Sarno on 1/18/25.
 //
 
 import Foundation
 
-/// Configuration for data managers.
-public struct DataManagerConfiguration: Sendable {
+/// Configuration for synchronous data managers with local persistence.
+public struct DataManagerSyncConfiguration: Sendable {
 
     /// Manager key for unique identification (e.g., "user", "settings", "profile")
     public let managerKey: String

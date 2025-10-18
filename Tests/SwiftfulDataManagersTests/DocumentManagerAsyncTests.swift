@@ -25,7 +25,7 @@ struct DocumentManagerAsyncTests {
 
     func createManager(document: TestUser? = nil) -> (DocumentManagerAsync<TestUser>, MockRemoteDocumentService<TestUser>) {
         let service = MockRemoteDocumentService<TestUser>(document: document)
-        let config = DataManagerConfiguration(managerKey: "test_user")
+        let config = DataManagerAsyncConfiguration(managerKey: "test_user")
         let manager = DocumentManagerAsync(service: service, configuration: config, logger: nil)
         return (manager, service)
     }
