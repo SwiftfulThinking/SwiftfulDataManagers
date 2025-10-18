@@ -156,6 +156,12 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     /// - Returns: The document
     /// - Throws: Error if fetch fails or no document ID set
     public func getDocumentAsync() async throws -> T {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         guard let documentId else {
             throw DataManagerError.noDocumentId
         }

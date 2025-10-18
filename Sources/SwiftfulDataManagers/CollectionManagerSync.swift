@@ -135,6 +135,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Returns: Array of all documents
     /// - Throws: Error if fetch fails
     public func getCollectionAsync() async throws -> [T] {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         // If we have cached collection, return it
         if !currentCollection.isEmpty {
             return currentCollection
@@ -165,6 +171,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Returns: The document
     /// - Throws: Error if fetch fails
     public func getDocumentAsync(id: String) async throws -> T {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         // If we have it cached, return it
         if let cachedDocument = currentCollection.first(where: { $0.id == id }) {
             return cachedDocument
@@ -216,6 +228,12 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Returns: Array of documents matching all filters from remote query
     /// - Throws: Error if query fails
     public func getDocumentsAsync(where filters: [String: any Codable & Sendable]) async throws -> [T] {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
         logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filters.count))
 
         do {
