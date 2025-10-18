@@ -52,7 +52,7 @@ public final class MockRemoteCollectionService<T: DataModelProtocol>: RemoteColl
         updatesContinuation?.yield(model)
     }
 
-    public func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws {
+    public func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws {
         try await Task.sleep(for: .seconds(0.5))
 
         guard let document = currentCollection.first(where: { $0.id == id }) else {
@@ -105,7 +105,7 @@ public final class MockRemoteCollectionService<T: DataModelProtocol>: RemoteColl
         deletionsContinuation?.yield(documentId)
     }
 
-    public func getDocuments(where filters: [String: any Codable & Sendable]) async throws -> [T] {
+    public func getDocuments(where filters: [String: any DMCodableSendable]) async throws -> [T] {
         try await Task.sleep(for: .seconds(0.5))
         // Mock implementation returns all documents (filtering not implemented)
         return currentCollection

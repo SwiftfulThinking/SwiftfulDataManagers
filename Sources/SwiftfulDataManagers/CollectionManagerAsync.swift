@@ -104,7 +104,7 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     ///   - id: The document ID
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
-    open func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws {
+    open func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws {
         logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
 
         do {
@@ -135,7 +135,7 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     /// - Parameter filters: Dictionary of field names to values for exact match queries
     /// - Returns: Array of documents matching all filters from remote query
     /// - Throws: Error if query fails
-    open func getDocuments(where filters: [String: any Codable & Sendable]) async throws -> [T] {
+    open func getDocuments(where filters: [String: any DMCodableSendable]) async throws -> [T] {
         logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filters.count))
 
         do {

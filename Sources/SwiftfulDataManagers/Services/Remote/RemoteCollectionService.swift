@@ -49,7 +49,7 @@ public protocol RemoteCollectionService<T>: Sendable {
     ///   - id: The document's unique identifier
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
-    func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws
+    func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws
 
     /// Stream real-time updates for individual documents in the collection
     /// - Returns: Tuple of (updates stream, deletions stream)
@@ -68,5 +68,5 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Parameter filters: Dictionary of field names to values for exact match queries
     /// - Returns: Array of documents matching all filters
     /// - Throws: Error if query fails
-    func getDocuments(where filters: [String: any Codable & Sendable]) async throws -> [T]
+    func getDocuments(where filters: [String: any DMCodableSendable]) async throws -> [T]
 }

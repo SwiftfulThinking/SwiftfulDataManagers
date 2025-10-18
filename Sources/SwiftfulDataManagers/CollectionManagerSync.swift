@@ -217,7 +217,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Parameter filters: Dictionary of field names to values for exact match queries
     /// - Returns: Filtered array of documents matching all filters
     /// - Note: This is a local filter on cached data. For remote queries, use getDocumentsAsync(where:)
-    public func getDocuments(where filters: [String: any Codable & Sendable]) -> [T] {
+    public func getDocuments(where filters: [String: any DMCodableSendable]) -> [T] {
         // This is a cache-only filter - would need reflection to implement properly
         // For now, return all documents - subclasses should override for custom filtering
         return currentCollection
@@ -227,7 +227,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// - Parameter filters: Dictionary of field names to values for exact match queries
     /// - Returns: Array of documents matching all filters from remote query
     /// - Throws: Error if query fails
-    public func getDocumentsAsync(where filters: [String: any Codable & Sendable]) async throws -> [T] {
+    public func getDocumentsAsync(where filters: [String: any DMCodableSendable]) async throws -> [T] {
         defer {
             if listenerFailedToAttach {
                 startListener()
@@ -277,7 +277,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     ///   - id: The document ID
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
-    open func updateDocument(id: String, data: [String: any Codable & Sendable]) async throws {
+    open func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws {
         defer {
             if listenerFailedToAttach {
                 startListener()
@@ -445,7 +445,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         listenerRetryCount = 0
     }
 
-    private func addPendingWrite(_ data: [String: any Codable & Sendable]) {
+    private func addPendingWrite(_ data: [String: any DMCodableSendable]) {
         guard let documentId = data["id"] as? String else {
             // If no document ID, just append
             let newWrite = PendingWrite(documentId: nil, fields: data)

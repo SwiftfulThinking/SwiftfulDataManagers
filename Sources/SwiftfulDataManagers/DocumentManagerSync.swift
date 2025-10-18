@@ -213,7 +213,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
     /// Update document with a dictionary of fields
     /// - Parameter data: Dictionary of fields to update
     /// - Throws: Error if update fails or no document ID
-    open func updateDocument(data: [String: any Codable & Sendable]) async throws {
+    open func updateDocument(data: [String: any DMCodableSendable]) async throws {
         guard let documentId else {
             throw DataManagerError.noDocumentId
         }
@@ -357,7 +357,7 @@ open class DocumentManagerSync<T: DataModelProtocol> {
         listenerRetryCount = 0
     }
 
-    private func addPendingWrite(_ data: [String: any Codable & Sendable]) {
+    private func addPendingWrite(_ data: [String: any DMCodableSendable]) {
         // DocumentManagerSync manages a single document, so merge all pending writes
         if let lastWrite = pendingWrites.last {
             // Merge new fields into existing write (new values overwrite old)
