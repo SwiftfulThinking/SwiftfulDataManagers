@@ -87,7 +87,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// Log in and start listening for collection updates
     /// - Note: Pass nil to clear all data without starting listener
     open func logIn() async {
-        logger?.trackEvent(event: Event.listenerStart)
+        logger?.trackEvent(event: Event.listenerStart(key: configuration.managerKey))
 
         // Sync pending writes if enabled and available
         if configuration.enablePendingWrites && !pendingWrites.isEmpty {
@@ -106,7 +106,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
     /// Stop listening for collection updates
     /// - Parameter clearCaches: If true, clears in-memory state and local persistence
     open func stopListening(clearCaches: Bool = false) {
-        logger?.trackEvent(event: Event.listenerStopped)
+        logger?.trackEvent(event: Event.listenerStopped(key: configuration.managerKey))
         stopListener()
 
         if clearCaches {
@@ -118,7 +118,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             try? local.saveCollection([])
             try? local.savePendingWrites([])
 
-            logger?.trackEvent(event: Event.cachesCleared)
+            logger?.trackEvent(event: Event.cachesCleared(key: configuration.managerKey))
         }
     }
 
@@ -152,18 +152,18 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.saveStart(documentId: document.id))
+        logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
 
         do {
             try await remote.saveDocument(document)
-            logger?.trackEvent(event: Event.saveSuccess(documentId: document.id))
+            logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
 
             // Clear pending writes for this document since save succeeded
             if configuration.enablePendingWrites && !pendingWrites.isEmpty {
                 clearPendingWrites(forDocumentId: document.id)
             }
         } catch {
-            logger?.trackEvent(event: Event.saveFail(documentId: document.id, error: error))
+            logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
             throw error
         }
     }
@@ -180,18 +180,18 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.updateStart(documentId: id))
+        logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
 
         do {
             try await remote.updateDocument(id: id, data: data)
-            logger?.trackEvent(event: Event.updateSuccess(documentId: id))
+            logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: id))
 
             // Clear pending writes for this document since update succeeded
             if configuration.enablePendingWrites && !pendingWrites.isEmpty {
                 clearPendingWrites(forDocumentId: id)
             }
         } catch {
-            logger?.trackEvent(event: Event.updateFail(documentId: id, error: error))
+            logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: id, error: error))
 
             // Add to pending writes if enabled (include document ID)
             if configuration.enablePendingWrites {
@@ -214,13 +214,13 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.deleteStart(documentId: id))
+        logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: id))
 
         do {
             try await remote.deleteDocument(id: id)
-            logger?.trackEvent(event: Event.deleteSuccess(documentId: id))
+            logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: id))
         } catch {
-            logger?.trackEvent(event: Event.deleteFail(documentId: id, error: error))
+            logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -234,13 +234,13 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         currentCollection = collection
 
         try? local.saveCollection(collection)
-        logger?.trackEvent(event: Event.collectionUpdated(count: collection.count))
+        logger?.trackEvent(event: Event.collectionUpdated(key: configuration.managerKey, count: collection.count))
     }
 
     // MARK: - Private Methods
 
     private func startListener() {
-        logger?.trackEvent(event: Event.listenerStart)
+        logger?.trackEvent(event: Event.listenerStart(key: configuration.managerKey))
         listenerFailedToAttach = false
 
         currentCollectionListenerTask?.cancel()
@@ -253,17 +253,17 @@ open class CollectionManagerSync<T: DataModelProtocol> {
                     self.listenerRetryCount = 0
 
                     handleCollectionUpdate(collection)
-                    logger?.trackEvent(event: Event.listenerSuccess(count: collection.count))
+                    logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: collection.count))
                 }
             } catch {
-                logger?.trackEvent(event: Event.listenerFail(error: error))
+                logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
                 self.listenerFailedToAttach = true
 
                 // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
                 self.listenerRetryCount += 1
                 let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
 
-                logger?.trackEvent(event: Event.listenerRetrying(retryCount: self.listenerRetryCount, delaySeconds: delay))
+                logger?.trackEvent(event: Event.listenerRetrying(key: configuration.managerKey, retryCount: self.listenerRetryCount, delaySeconds: delay))
 
                 // Schedule retry with exponential backoff
                 self.listenerRetryTask?.cancel()
@@ -290,7 +290,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             // If no document ID, just append
             pendingWrites.append(data)
             try? local.savePendingWrites(pendingWrites)
-            logger?.trackEvent(event: Event.pendingWriteAdded(count: pendingWrites.count))
+            logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
             return
         }
 
@@ -311,7 +311,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         }
 
         try? local.savePendingWrites(pendingWrites)
-        logger?.trackEvent(event: Event.pendingWriteAdded(count: pendingWrites.count))
+        logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
     }
 
     private func clearPendingWrites(forDocumentId documentId: String) {
@@ -323,14 +323,14 @@ open class CollectionManagerSync<T: DataModelProtocol> {
 
         if originalCount != pendingWrites.count {
             try? local.savePendingWrites(pendingWrites)
-            logger?.trackEvent(event: Event.pendingWritesCleared(documentId: documentId, remainingCount: pendingWrites.count))
+            logger?.trackEvent(event: Event.pendingWritesCleared(key: configuration.managerKey, documentId: documentId, remainingCount: pendingWrites.count))
         }
     }
 
     private func syncPendingWrites() async {
         guard !pendingWrites.isEmpty else { return }
 
-        logger?.trackEvent(event: Event.syncPendingWritesStart(count: pendingWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesStart(key: configuration.managerKey, count: pendingWrites.count))
 
         var successCount = 0
         var failedWrites: [[String: any Sendable]] = []
@@ -354,55 +354,55 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         pendingWrites = failedWrites
         try? local.savePendingWrites(pendingWrites)
 
-        logger?.trackEvent(event: Event.syncPendingWritesComplete(synced: successCount, failed: failedWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesComplete(key: configuration.managerKey, synced: successCount, failed: failedWrites.count))
     }
 
     // MARK: - Events
 
     enum Event: DataLogEvent {
-        case listenerStart
-        case listenerSuccess(count: Int)
-        case listenerFail(error: Error)
-        case listenerRetrying(retryCount: Int, delaySeconds: Double)
-        case listenerStopped
-        case saveStart(documentId: String)
-        case saveSuccess(documentId: String)
-        case saveFail(documentId: String, error: Error)
-        case updateStart(documentId: String)
-        case updateSuccess(documentId: String)
-        case updateFail(documentId: String, error: Error)
-        case deleteStart(documentId: String)
-        case deleteSuccess(documentId: String)
-        case deleteFail(documentId: String, error: Error)
-        case collectionUpdated(count: Int)
-        case pendingWriteAdded(count: Int)
-        case pendingWritesCleared(documentId: String, remainingCount: Int)
-        case cachesCleared
-        case syncPendingWritesStart(count: Int)
-        case syncPendingWritesComplete(synced: Int, failed: Int)
+        case listenerStart(key: String)
+        case listenerSuccess(key: String, count: Int)
+        case listenerFail(key: String, error: Error)
+        case listenerRetrying(key: String, retryCount: Int, delaySeconds: Double)
+        case listenerStopped(key: String)
+        case saveStart(key: String, documentId: String)
+        case saveSuccess(key: String, documentId: String)
+        case saveFail(key: String, documentId: String, error: Error)
+        case updateStart(key: String, documentId: String)
+        case updateSuccess(key: String, documentId: String)
+        case updateFail(key: String, documentId: String, error: Error)
+        case deleteStart(key: String, documentId: String)
+        case deleteSuccess(key: String, documentId: String)
+        case deleteFail(key: String, documentId: String, error: Error)
+        case collectionUpdated(key: String, count: Int)
+        case pendingWriteAdded(key: String, count: Int)
+        case pendingWritesCleared(key: String, documentId: String, remainingCount: Int)
+        case cachesCleared(key: String)
+        case syncPendingWritesStart(key: String, count: Int)
+        case syncPendingWritesComplete(key: String, synced: Int, failed: Int)
 
         var eventName: String {
             switch self {
-            case .listenerStart:                return "ColManS_listener_start"
-            case .listenerSuccess:              return "ColManS_listener_success"
-            case .listenerFail:                 return "ColManS_listener_fail"
-            case .listenerRetrying:             return "ColManS_listener_retrying"
-            case .listenerStopped:              return "ColManS_listener_stopped"
-            case .saveStart:                    return "ColManS_save_start"
-            case .saveSuccess:                  return "ColManS_save_success"
-            case .saveFail:                     return "ColManS_save_fail"
-            case .updateStart:                  return "ColManS_update_start"
-            case .updateSuccess:                return "ColManS_update_success"
-            case .updateFail:                   return "ColManS_update_fail"
-            case .deleteStart:                  return "ColManS_delete_start"
-            case .deleteSuccess:                return "ColManS_delete_success"
-            case .deleteFail:                   return "ColManS_delete_fail"
-            case .collectionUpdated:            return "ColManS_collection_updated"
-            case .pendingWriteAdded:            return "ColManS_pending_write_added"
-            case .pendingWritesCleared:         return "ColManS_pending_writes_cleared"
-            case .cachesCleared:                return "ColManS_caches_cleared"
-            case .syncPendingWritesStart:       return "ColManS_sync_pending_writes_start"
-            case .syncPendingWritesComplete:    return "ColManS_sync_pending_writes_complete"
+            case .listenerStart(let key):                   return "\(key)_listener_start"
+            case .listenerSuccess(let key, _):              return "\(key)_listener_success"
+            case .listenerFail(let key, _):                 return "\(key)_listener_fail"
+            case .listenerRetrying(let key, _, _):          return "\(key)_listener_retrying"
+            case .listenerStopped(let key):                 return "\(key)_listener_stopped"
+            case .saveStart(let key, _):                    return "\(key)_save_start"
+            case .saveSuccess(let key, _):                  return "\(key)_save_success"
+            case .saveFail(let key, _, _):                  return "\(key)_save_fail"
+            case .updateStart(let key, _):                  return "\(key)_update_start"
+            case .updateSuccess(let key, _):                return "\(key)_update_success"
+            case .updateFail(let key, _, _):                return "\(key)_update_fail"
+            case .deleteStart(let key, _):                  return "\(key)_delete_start"
+            case .deleteSuccess(let key, _):                return "\(key)_delete_success"
+            case .deleteFail(let key, _, _):                return "\(key)_delete_fail"
+            case .collectionUpdated(let key, _):            return "\(key)_collectionUpdated"
+            case .pendingWriteAdded(let key, _):            return "\(key)_pendingWriteAdded"
+            case .pendingWritesCleared(let key, _, _):      return "\(key)_pendingWritesCleared"
+            case .cachesCleared(let key):                   return "\(key)_cachesCleared"
+            case .syncPendingWritesStart(let key, _):       return "\(key)_syncPendingWrites_start"
+            case .syncPendingWritesComplete(let key, _, _): return "\(key)_syncPendingWrites_complete"
             }
         }
 
@@ -410,29 +410,29 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
-            case .listenerSuccess(let count), .collectionUpdated(let count):
+            case .listenerSuccess(_, let count), .collectionUpdated(_, let count):
                 dict["count"] = count
-            case .listenerFail(let error):
+            case .listenerFail(_, let error):
                 dict.merge(error.eventParameters)
-            case .listenerRetrying(let retryCount, let delaySeconds):
+            case .listenerRetrying(_, let retryCount, let delaySeconds):
                 dict["retry_count"] = retryCount
                 dict["delay_seconds"] = delaySeconds
-            case .saveStart(let documentId), .saveSuccess(let documentId),
-                 .updateStart(let documentId), .updateSuccess(let documentId),
-                 .deleteStart(let documentId), .deleteSuccess(let documentId):
+            case .saveStart(_, let documentId), .saveSuccess(_, let documentId),
+                 .updateStart(_, let documentId), .updateSuccess(_, let documentId),
+                 .deleteStart(_, let documentId), .deleteSuccess(_, let documentId):
                 dict["document_id"] = documentId
-            case .saveFail(let documentId, let error),
-                 .updateFail(let documentId, let error), .deleteFail(let documentId, let error):
+            case .saveFail(_, let documentId, let error),
+                 .updateFail(_, let documentId, let error), .deleteFail(_, let documentId, let error):
                 dict["document_id"] = documentId
                 dict.merge(error.eventParameters)
-            case .pendingWriteAdded(let count):
+            case .pendingWriteAdded(_, let count):
                 dict["pending_write_count"] = count
-            case .pendingWritesCleared(let documentId, let remainingCount):
+            case .pendingWritesCleared(_, let documentId, let remainingCount):
                 dict["document_id"] = documentId
                 dict["remaining_count"] = remainingCount
-            case .syncPendingWritesStart(let count):
+            case .syncPendingWritesStart(_, let count):
                 dict["pending_write_count"] = count
-            case .syncPendingWritesComplete(let synced, let failed):
+            case .syncPendingWritesComplete(_, let synced, let failed):
                 dict["synced_count"] = synced
                 dict["failed_count"] = failed
             default:

@@ -29,6 +29,7 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     // MARK: - Internal Properties
 
     internal let remote: any RemoteCollectionService<T>
+    internal let configuration: DataManagerConfiguration
     internal let logger: (any DataLogger)?
 
     // MARK: - Initialization
@@ -36,12 +37,15 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     /// Initialize the CollectionManagerAsync
     /// - Parameters:
     ///   - remote: Remote collection service
+    ///   - configuration: Manager configuration
     ///   - logger: Optional logger for analytics
     public init(
         remote: any RemoteCollectionService<T>,
+        configuration: DataManagerConfiguration,
         logger: (any DataLogger)? = nil
     ) {
         self.remote = remote
+        self.configuration = configuration
         self.logger = logger
     }
 
@@ -51,14 +55,14 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     /// - Returns: Array of all documents
     /// - Throws: Error if get fails
     open func getCollection() async throws -> [T] {
-        logger?.trackEvent(event: Event.getCollectionStart)
+        logger?.trackEvent(event: Event.getCollectionStart(key: configuration.managerKey))
 
         do {
             let collection = try await remote.getCollection()
-            logger?.trackEvent(event: Event.getCollectionSuccess(count: collection.count))
+            logger?.trackEvent(event: Event.getCollectionSuccess(key: configuration.managerKey, count: collection.count))
             return collection
         } catch {
-            logger?.trackEvent(event: Event.getCollectionFail(error: error))
+            logger?.trackEvent(event: Event.getCollectionFail(key: configuration.managerKey, error: error))
             throw error
         }
     }
@@ -68,14 +72,14 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     /// - Returns: The document
     /// - Throws: Error if get fails
     open func getDocument(id: String) async throws -> T {
-        logger?.trackEvent(event: Event.getDocumentStart(documentId: id))
+        logger?.trackEvent(event: Event.getDocumentStart(key: configuration.managerKey, documentId: id))
 
         do {
             let document = try await remote.getDocument(id: id)
-            logger?.trackEvent(event: Event.getDocumentSuccess(documentId: id))
+            logger?.trackEvent(event: Event.getDocumentSuccess(key: configuration.managerKey, documentId: id))
             return document
         } catch {
-            logger?.trackEvent(event: Event.getDocumentFail(documentId: id, error: error))
+            logger?.trackEvent(event: Event.getDocumentFail(key: configuration.managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -84,13 +88,13 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     /// - Parameter document: The document to save
     /// - Throws: Error if save fails
     open func saveDocument(_ document: T) async throws {
-        logger?.trackEvent(event: Event.saveStart(documentId: document.id))
+        logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
 
         do {
             try await remote.saveDocument(document)
-            logger?.trackEvent(event: Event.saveSuccess(documentId: document.id))
+            logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
         } catch {
-            logger?.trackEvent(event: Event.saveFail(documentId: document.id, error: error))
+            logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
             throw error
         }
     }
@@ -101,13 +105,13 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
     open func updateDocument(id: String, data: [String: any Sendable]) async throws {
-        logger?.trackEvent(event: Event.updateStart(documentId: id))
+        logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
 
         do {
             try await remote.updateDocument(id: id, data: data)
-            logger?.trackEvent(event: Event.updateSuccess(documentId: id))
+            logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: id))
         } catch {
-            logger?.trackEvent(event: Event.updateFail(documentId: id, error: error))
+            logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -116,13 +120,13 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     /// - Parameter id: The document ID
     /// - Throws: Error if deletion fails
     open func deleteDocument(id: String) async throws {
-        logger?.trackEvent(event: Event.deleteStart(documentId: id))
+        logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: id))
 
         do {
             try await remote.deleteDocument(id: id)
-            logger?.trackEvent(event: Event.deleteSuccess(documentId: id))
+            logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: id))
         } catch {
-            logger?.trackEvent(event: Event.deleteFail(documentId: id, error: error))
+            logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -130,39 +134,39 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
     // MARK: - Events
 
     enum Event: DataLogEvent {
-        case getCollectionStart
-        case getCollectionSuccess(count: Int)
-        case getCollectionFail(error: Error)
-        case getDocumentStart(documentId: String)
-        case getDocumentSuccess(documentId: String)
-        case getDocumentFail(documentId: String, error: Error)
-        case saveStart(documentId: String)
-        case saveSuccess(documentId: String)
-        case saveFail(documentId: String, error: Error)
-        case updateStart(documentId: String)
-        case updateSuccess(documentId: String)
-        case updateFail(documentId: String, error: Error)
-        case deleteStart(documentId: String)
-        case deleteSuccess(documentId: String)
-        case deleteFail(documentId: String, error: Error)
+        case getCollectionStart(key: String)
+        case getCollectionSuccess(key: String, count: Int)
+        case getCollectionFail(key: String, error: Error)
+        case getDocumentStart(key: String, documentId: String)
+        case getDocumentSuccess(key: String, documentId: String)
+        case getDocumentFail(key: String, documentId: String, error: Error)
+        case saveStart(key: String, documentId: String)
+        case saveSuccess(key: String, documentId: String)
+        case saveFail(key: String, documentId: String, error: Error)
+        case updateStart(key: String, documentId: String)
+        case updateSuccess(key: String, documentId: String)
+        case updateFail(key: String, documentId: String, error: Error)
+        case deleteStart(key: String, documentId: String)
+        case deleteSuccess(key: String, documentId: String)
+        case deleteFail(key: String, documentId: String, error: Error)
 
         var eventName: String {
             switch self {
-            case .getCollectionStart:       return "ColManA_get_collection_start"
-            case .getCollectionSuccess:     return "ColManA_get_collection_success"
-            case .getCollectionFail:        return "ColManA_get_collection_fail"
-            case .getDocumentStart:         return "ColManA_get_document_start"
-            case .getDocumentSuccess:       return "ColManA_get_document_success"
-            case .getDocumentFail:          return "ColManA_get_document_fail"
-            case .saveStart:                return "ColManA_save_start"
-            case .saveSuccess:              return "ColManA_save_success"
-            case .saveFail:                 return "ColManA_save_fail"
-            case .updateStart:              return "ColManA_update_start"
-            case .updateSuccess:            return "ColManA_update_success"
-            case .updateFail:               return "ColManA_update_fail"
-            case .deleteStart:              return "ColManA_delete_start"
-            case .deleteSuccess:            return "ColManA_delete_success"
-            case .deleteFail:               return "ColManA_delete_fail"
+            case .getCollectionStart(let key):          return "\(key)_getCollection_start"
+            case .getCollectionSuccess(let key, _):     return "\(key)_getCollection_success"
+            case .getCollectionFail(let key, _):        return "\(key)_getCollection_fail"
+            case .getDocumentStart(let key, _):         return "\(key)_getDocument_start"
+            case .getDocumentSuccess(let key, _):       return "\(key)_getDocument_success"
+            case .getDocumentFail(let key, _, _):       return "\(key)_getDocument_fail"
+            case .saveStart(let key, _):                return "\(key)_save_start"
+            case .saveSuccess(let key, _):              return "\(key)_save_success"
+            case .saveFail(let key, _, _):              return "\(key)_save_fail"
+            case .updateStart(let key, _):              return "\(key)_update_start"
+            case .updateSuccess(let key, _):            return "\(key)_update_success"
+            case .updateFail(let key, _, _):            return "\(key)_update_fail"
+            case .deleteStart(let key, _):              return "\(key)_delete_start"
+            case .deleteSuccess(let key, _):            return "\(key)_delete_success"
+            case .deleteFail(let key, _, _):            return "\(key)_delete_fail"
             }
         }
 
@@ -170,17 +174,17 @@ open class CollectionManagerAsync<T: DataModelProtocol> {
             var dict: [String: Any] = [:]
 
             switch self {
-            case .getCollectionSuccess(let count):
+            case .getCollectionSuccess(_, let count):
                 dict["count"] = count
-            case .getCollectionFail(let error):
+            case .getCollectionFail(_, let error):
                 dict.merge(error.eventParameters)
-            case .getDocumentStart(let documentId), .getDocumentSuccess(let documentId),
-                 .saveStart(let documentId), .saveSuccess(let documentId),
-                 .updateStart(let documentId), .updateSuccess(let documentId),
-                 .deleteStart(let documentId), .deleteSuccess(let documentId):
+            case .getDocumentStart(_, let documentId), .getDocumentSuccess(_, let documentId),
+                 .saveStart(_, let documentId), .saveSuccess(_, let documentId),
+                 .updateStart(_, let documentId), .updateSuccess(_, let documentId),
+                 .deleteStart(_, let documentId), .deleteSuccess(_, let documentId):
                 dict["document_id"] = documentId
-            case .getDocumentFail(let documentId, let error), .saveFail(let documentId, let error),
-                 .updateFail(let documentId, let error), .deleteFail(let documentId, let error):
+            case .getDocumentFail(_, let documentId, let error), .saveFail(_, let documentId, let error),
+                 .updateFail(_, let documentId, let error), .deleteFail(_, let documentId, let error):
                 dict["document_id"] = documentId
                 dict.merge(error.eventParameters)
             default:
