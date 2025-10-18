@@ -1,5 +1,5 @@
 //
-//  DataModelProtocol.swift
+//  DMProtocol.swift
 //  SwiftfulDataManagers
 //
 //  Created by Nick Sarno on 1/17/25.
@@ -14,14 +14,14 @@ import IdentifiableByString
 ///
 /// Example:
 /// ```swift
-/// struct Product: DataModelProtocol {
+/// struct Product: DMProtocol {
 ///     let id: String
 ///     var name: String
 ///     var price: Double
 ///     var inventory: Int
 /// }
 /// ```
-public protocol DataModelProtocol: StringIdentifiable, Codable, Sendable {
+public protocol DMProtocol: StringIdentifiable, Codable, Sendable {
     /// Unique identifier for the data model
     var id: String { get }
 
@@ -31,7 +31,7 @@ public protocol DataModelProtocol: StringIdentifiable, Codable, Sendable {
 
 // MARK: - Default Implementation
 
-public extension DataModelProtocol {
+public extension DMProtocol {
     /// Default event parameters include just the ID
     var eventParameters: [String: Any] {
         return ["id": id]

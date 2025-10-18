@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @MainActor
-public final class SwiftDataCollectionPersistence<T: DataModelProtocol>: LocalCollectionPersistence {
+public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectionPersistence {
 
     private let managerKey: String
     private let container: ModelContainer

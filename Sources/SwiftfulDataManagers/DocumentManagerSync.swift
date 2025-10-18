@@ -32,7 +32,7 @@ import Observation
 /// ```
 @MainActor
 @Observable
-open class DocumentManagerSync<T: DataModelProtocol> {
+open class DocumentManagerSync<T: DMProtocol> {
 
     // MARK: - Public Properties
 

@@ -14,7 +14,7 @@ import Foundation
 ///
 /// Example:
 /// ```swift
-/// struct FirebaseCollectionService<T: DataModelProtocol>: RemoteCollectionService {
+/// struct FirebaseCollectionService<T: DMProtocol>: RemoteCollectionService {
 ///     func getCollection() async throws -> [T] {
 ///         // Fetch from Firestore collection
 ///     }
@@ -26,7 +26,7 @@ import Foundation
 /// ```
 @MainActor
 public protocol RemoteCollectionService<T>: Sendable {
-    associatedtype T: DataModelProtocol
+    associatedtype T: DMProtocol
 
     /// Fetch all documents in the collection
     /// - Returns: Array of all documents

@@ -12,10 +12,10 @@ import SwiftData
 ///
 /// **Architecture Note:**
 /// This is the persistence layer model used exclusively by SwiftDataCollectionPersistence.
-/// The public API uses DataModelProtocol conforming structs for data transfer.
+/// The public API uses DMProtocol conforming structs for data transfer.
 /// Conversion between DocumentEntity and document models happens in the persistence layer.
 @Model
-public final class DocumentEntity<T: DataModelProtocol> {
+public final class DocumentEntity<T: DMProtocol> {
     /// Document unique identifier
     @Attribute(.unique) public var id: String
 

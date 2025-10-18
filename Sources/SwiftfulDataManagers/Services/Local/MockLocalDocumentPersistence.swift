@@ -8,7 +8,7 @@
 import Foundation
 
 /// Mock implementation of LocalDocumentPersistence for testing and previews.
-public final class MockLocalDocumentPersistence<T: DataModelProtocol>: LocalDocumentPersistence, @unchecked Sendable {
+public final class MockLocalDocumentPersistence<T: DMProtocol>: LocalDocumentPersistence, @unchecked Sendable {
 
     // MARK: - Properties
 

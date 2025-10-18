@@ -14,7 +14,7 @@ import Foundation
 ///
 /// Example:
 /// ```swift
-/// struct SwiftDataCollectionPersistence<T: DataModelProtocol>: LocalCollectionPersistence {
+/// struct SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectionPersistence {
 ///     func saveCollection(_ collection: [T]) throws {
 ///         // Save to SwiftData
 ///     }
@@ -26,7 +26,7 @@ import Foundation
 /// ```
 @MainActor
 public protocol LocalCollectionPersistence<T>: Sendable {
-    associatedtype T: DataModelProtocol
+    associatedtype T: DMProtocol
 
     /// Save the entire collection to local storage
     /// - Parameter collection: The collection to save

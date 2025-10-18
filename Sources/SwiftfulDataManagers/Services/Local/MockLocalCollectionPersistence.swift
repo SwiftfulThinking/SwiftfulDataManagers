@@ -8,7 +8,7 @@
 import Foundation
 
 /// Mock implementation of LocalCollectionPersistence for testing and previews.
-public final class MockLocalCollectionPersistence<T: DataModelProtocol>: LocalCollectionPersistence, @unchecked Sendable {
+public final class MockLocalCollectionPersistence<T: DMProtocol>: LocalCollectionPersistence, @unchecked Sendable {
 
     // MARK: - Properties
 

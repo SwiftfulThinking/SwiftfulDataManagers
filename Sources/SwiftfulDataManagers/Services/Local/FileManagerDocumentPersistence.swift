@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct FileManagerDocumentPersistence<T: DataModelProtocol>: LocalDocumentPersistence {
+public struct FileManagerDocumentPersistence<T: DMProtocol>: LocalDocumentPersistence {
 
     private let managerKey: String
 

@@ -9,7 +9,7 @@ import Foundation
 
 /// Mock implementation of RemoteDocumentService for testing and previews.
 @MainActor
-public final class MockRemoteDocumentService<T: DataModelProtocol>: RemoteDocumentService, @unchecked Sendable {
+public final class MockRemoteDocumentService<T: DMProtocol>: RemoteDocumentService, @unchecked Sendable {
 
     // MARK: - Properties
 

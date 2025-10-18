@@ -14,7 +14,7 @@ import Foundation
 ///
 /// Example:
 /// ```swift
-/// struct FirebaseDocumentService<T: DataModelProtocol>: RemoteDocumentService {
+/// struct FirebaseDocumentService<T: DMProtocol>: RemoteDocumentService {
 ///     func getDocument(id: String) async throws -> T {
 ///         // Fetch from Firestore
 ///     }
@@ -26,7 +26,7 @@ import Foundation
 /// ```
 @MainActor
 public protocol RemoteDocumentService<T>: Sendable {
-    associatedtype T: DataModelProtocol
+    associatedtype T: DMProtocol
 
     /// Fetch a document by ID
     /// - Parameter id: The document's unique identifier

@@ -24,7 +24,7 @@ import Foundation
 /// // Update document
 /// try await manager.updateDocument(id: "product_123", data: ["price": 29.99])
 /// ```
-open class DocumentManagerAsync<T: DataModelProtocol> {
+open class DocumentManagerAsync<T: DMProtocol> {
 
     // MARK: - Internal Properties
 
