@@ -12,46 +12,59 @@ public final class MockLocalDocumentPersistence<T: DMProtocol>: LocalDocumentPer
 
     // MARK: - Properties
 
-    private let managerKey: String
-    private var cachedDocument: T?
-    private var cachedDocumentId: String?
-    private var cachedPendingWrites: [PendingWrite] = []
+    private var documents: [String: T] = [:]
+    private var documentIds: [String: String] = [:]
+    private var pendingWrites: [String: [PendingWrite]] = [:]
+    private let defaultDocument: T?
 
     // MARK: - Initialization
 
-    public init(managerKey: String, document: T? = nil) {
-        self.managerKey = managerKey
-        self.cachedDocument = document
-        self.cachedDocumentId = document?.id
+    public init(document: T? = nil) {
+        self.defaultDocument = document
+        if let document = document {
+            // Store under a wildcard that will be returned for any key
+            self.documents["*"] = document
+            self.documentIds["*"] = document.id
+        }
     }
 
     // MARK: - LocalDocumentPersistence Implementation
 
-    public func saveDocument(_ document: T?) throws {
-        cachedDocument = document
+    public func saveDocument(managerKey: String, _ document: T?) throws {
+        if let document = document {
+            documents[managerKey] = document
+        } else {
+            documents.removeValue(forKey: managerKey)
+        }
     }
 
-    public func getDocument() throws -> T? {
-        return cachedDocument
+    public func getDocument(managerKey: String) throws -> T? {
+        // Return specific key if it exists, otherwise return wildcard default
+        return documents[managerKey] ?? documents["*"]
     }
 
-    public func savePendingWrites(_ writes: [PendingWrite]) throws {
-        cachedPendingWrites = writes
+    public func savePendingWrites(managerKey: String, _ writes: [PendingWrite]) throws {
+        pendingWrites[managerKey] = writes
     }
 
-    public func getPendingWrites() throws -> [PendingWrite] {
-        return cachedPendingWrites
+    public func getPendingWrites(managerKey: String) throws -> [PendingWrite] {
+        return pendingWrites[managerKey] ?? []
     }
 
-    public func clearPendingWrites() throws {
-        cachedPendingWrites = []
+    public func clearPendingWrites(managerKey: String) throws {
+        pendingWrites[managerKey] = []
     }
 
-    public func saveDocumentId(_ id: String?) throws {
-        cachedDocumentId = id
+    public func saveDocumentId(managerKey: String, _ id: String?) throws {
+        if let id = id {
+            documentIds[managerKey] = id
+        } else {
+            documentIds.removeValue(forKey: managerKey)
+        }
     }
 
-    public func getDocumentId() throws -> String? {
-        return cachedDocumentId
+    public func getDocumentId(managerKey: String) throws -> String? {
+        // Return specific key if it exists, otherwise return wildcard default
+        return documentIds[managerKey] ?? documentIds["*"]
     }
 }

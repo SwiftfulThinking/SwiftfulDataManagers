@@ -73,12 +73,12 @@ open class DocumentManagerSync<T: DMProtocol> {
         self.logger = logger
 
         // Load cached document and document ID from local storage
-        self.currentDocument = try? local.getDocument()
-        self.documentId = try? local.getDocumentId()
+        self.currentDocument = try? local.getDocument(managerKey: configuration.managerKey)
+        self.documentId = try? local.getDocumentId(managerKey: configuration.managerKey)
 
         // Load pending writes if enabled
         if configuration.enablePendingWrites {
-            self.pendingWrites = (try? local.getPendingWrites()) ?? []
+            self.pendingWrites = (try? local.getPendingWrites(managerKey: configuration.managerKey)) ?? []
         }
     }
 
@@ -96,7 +96,7 @@ open class DocumentManagerSync<T: DMProtocol> {
         // Only update documentId if it's different
         if self.documentId != documentId {
             self.documentId = documentId
-            try? local.saveDocumentId(documentId)
+            try? local.saveDocumentId(managerKey: configuration.managerKey, documentId)
         }
 
         // Sync pending writes if enabled and available
@@ -126,9 +126,9 @@ open class DocumentManagerSync<T: DMProtocol> {
             pendingWrites = []
 
             // Clear local persistence
-            try? local.saveDocument(nil)
-            try? local.saveDocumentId(nil)
-            try? local.savePendingWrites([])
+            try? local.saveDocument(managerKey: configuration.managerKey, nil)
+            try? local.saveDocumentId(managerKey: configuration.managerKey, nil)
+            try? local.savePendingWrites(managerKey: configuration.managerKey, [])
 
             logger?.trackEvent(event: Event.cachesCleared(key: configuration.managerKey))
         }
@@ -289,13 +289,13 @@ open class DocumentManagerSync<T: DMProtocol> {
         currentDocument = document
 
         if let document {
-            try? local.saveDocument(document)
+            try? local.saveDocument(managerKey: configuration.managerKey, document)
             logger?.trackEvent(event: Event.documentUpdated(key: configuration.managerKey, documentId: document.id))
 
             // Add document properties to logger
             logger?.addUserProperties(dict: document.eventParameters, isHighPriority: true)
         } else {
-            try? local.saveDocument(nil)
+            try? local.saveDocument(managerKey: configuration.managerKey, nil)
             logger?.trackEvent(event: Event.documentDeleted(key: configuration.managerKey))
         }
     }
@@ -367,13 +367,13 @@ open class DocumentManagerSync<T: DMProtocol> {
             pendingWrites.append(newWrite)
         }
 
-        try? local.savePendingWrites(pendingWrites)
+        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
         logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
     }
 
     private func clearPendingWrites() {
         pendingWrites = []
-        try? local.savePendingWrites(pendingWrites)
+        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
         logger?.trackEvent(event: Event.pendingWritesCleared(key: configuration.managerKey))
     }
 
@@ -396,7 +396,7 @@ open class DocumentManagerSync<T: DMProtocol> {
 
         // Update pending writes with only failed ones
         pendingWrites = failedWrites
-        try? local.savePendingWrites(pendingWrites)
+        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
 
         logger?.trackEvent(event: Event.syncPendingWritesComplete(key: configuration.managerKey, synced: successCount, failed: failedWrites.count))
     }

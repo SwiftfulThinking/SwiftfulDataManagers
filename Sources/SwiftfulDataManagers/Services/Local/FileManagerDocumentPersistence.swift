@@ -9,23 +9,19 @@ import Foundation
 
 public struct FileManagerDocumentPersistence<T: DMProtocol>: LocalDocumentPersistence {
 
-    private let managerKey: String
+    public init() { }
 
-    public init(managerKey: String) {
-        self.managerKey = managerKey
-    }
-
-    public func saveDocument(_ document: T?) throws {
+    public func saveDocument(managerKey: String, _ document: T?) throws {
         let key = "document_\(managerKey)"
         try FileManager.saveDocument(key: key, value: document)
     }
 
-    public func getDocument() throws -> T? {
+    public func getDocument(managerKey: String) throws -> T? {
         let key = "document_\(managerKey)"
         return try? FileManager.getDocument(key: key)
     }
 
-    public func saveDocumentId(_ id: String?) throws {
+    public func saveDocumentId(managerKey: String, _ id: String?) throws {
         let key = "documentId_\(managerKey)"
         if let id = id {
             UserDefaults.standard.set(id, forKey: key)
@@ -34,7 +30,7 @@ public struct FileManagerDocumentPersistence<T: DMProtocol>: LocalDocumentPersis
         }
     }
 
-    public func getDocumentId() throws -> String? {
+    public func getDocumentId(managerKey: String) throws -> String? {
         let key = "documentId_\(managerKey)"
         let id = UserDefaults.standard.string(forKey: key)
         return id?.isEmpty == true ? nil : id
@@ -42,20 +38,20 @@ public struct FileManagerDocumentPersistence<T: DMProtocol>: LocalDocumentPersis
 
     // MARK: - Pending Writes Persistence
 
-    private func pendingWritesFileURL() -> URL {
+    private func pendingWritesFileURL(managerKey: String) -> URL {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return documentsDirectory.appendingPathComponent("DocumentManager_PendingWrites_\(managerKey).json")
     }
 
-    public func savePendingWrites(_ writes: [PendingWrite]) throws {
-        let fileURL = pendingWritesFileURL()
+    public func savePendingWrites(managerKey: String, _ writes: [PendingWrite]) throws {
+        let fileURL = pendingWritesFileURL(managerKey: managerKey)
         let dictionaries = writes.map { $0.toDictionary() }
         let data = try JSONSerialization.data(withJSONObject: dictionaries)
         try data.write(to: fileURL)
     }
 
-    public func getPendingWrites() throws -> [PendingWrite] {
-        let fileURL = pendingWritesFileURL()
+    public func getPendingWrites(managerKey: String) throws -> [PendingWrite] {
+        let fileURL = pendingWritesFileURL(managerKey: managerKey)
         guard let data = try? Data(contentsOf: fileURL) else {
             return []
         }
@@ -65,8 +61,8 @@ public struct FileManagerDocumentPersistence<T: DMProtocol>: LocalDocumentPersis
         return dictionaries.compactMap { PendingWrite.fromDictionary($0) }
     }
 
-    public func clearPendingWrites() throws {
-        let fileURL = pendingWritesFileURL()
+    public func clearPendingWrites(managerKey: String) throws {
+        let fileURL = pendingWritesFileURL(managerKey: managerKey)
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
         }

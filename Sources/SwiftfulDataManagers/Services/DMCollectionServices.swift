@@ -23,6 +23,6 @@ public struct MockDMCollectionServices<T: DMProtocol>: DMCollectionServices {
 
     public init(collection: [T] = []) {
         self.remote = MockRemoteCollectionService<T>(collection: collection)
-        self.local = MockLocalCollectionPersistence<T>(managerKey: "mock", collection: collection)
+        self.local = MockLocalCollectionPersistence<T>(collection: collection)
     }
 }

@@ -29,36 +29,46 @@ public protocol LocalDocumentPersistence<T>: Sendable {
     associatedtype T: DMProtocol
 
     /// Save a document to local storage
-    /// - Parameter document: The document to save (nil to clear)
+    /// - Parameters:
+    ///   - managerKey: The key identifying this manager
+    ///   - document: The document to save (nil to clear)
     /// - Throws: Error if save fails
-    func saveDocument(_ document: T?) throws
+    func saveDocument(managerKey: String, _ document: T?) throws
 
     /// Retrieve the cached document from local storage
+    /// - Parameter managerKey: The key identifying this manager
     /// - Returns: The cached document, or nil if not found
     /// - Throws: Error if retrieval fails
-    func getDocument() throws -> T?
+    func getDocument(managerKey: String) throws -> T?
 
     /// Save pending writes to local storage
-    /// - Parameter writes: Array of pending write operations
+    /// - Parameters:
+    ///   - managerKey: The key identifying this manager
+    ///   - writes: Array of pending write operations
     /// - Throws: Error if save fails
-    func savePendingWrites(_ writes: [PendingWrite]) throws
+    func savePendingWrites(managerKey: String, _ writes: [PendingWrite]) throws
 
     /// Retrieve pending writes from local storage
+    /// - Parameter managerKey: The key identifying this manager
     /// - Returns: Array of pending write operations
     /// - Throws: Error if retrieval fails
-    func getPendingWrites() throws -> [PendingWrite]
+    func getPendingWrites(managerKey: String) throws -> [PendingWrite]
 
     /// Clear all pending writes from local storage
+    /// - Parameter managerKey: The key identifying this manager
     /// - Throws: Error if clear fails
-    func clearPendingWrites() throws
+    func clearPendingWrites(managerKey: String) throws
 
     /// Save the document ID to local storage
-    /// - Parameter id: The document ID (nil to clear)
+    /// - Parameters:
+    ///   - managerKey: The key identifying this manager
+    ///   - id: The document ID (nil to clear)
     /// - Throws: Error if save fails
-    func saveDocumentId(_ id: String?) throws
+    func saveDocumentId(managerKey: String, _ id: String?) throws
 
     /// Retrieve the document ID from local storage
+    /// - Parameter managerKey: The key identifying this manager
     /// - Returns: The cached document ID, or nil if not found
     /// - Throws: Error if retrieval fails
-    func getDocumentId() throws -> String?
+    func getDocumentId(managerKey: String) throws -> String?
 }

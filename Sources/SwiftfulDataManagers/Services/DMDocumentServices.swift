@@ -23,6 +23,6 @@ public struct MockDMDocumentServices<T: DMProtocol>: DMDocumentServices {
 
     public init(document: T? = nil) {
         self.remote = MockRemoteDocumentService<T>(document: document)
-        self.local = MockLocalDocumentPersistence<T>(managerKey: "mock", document: document)
+        self.local = MockLocalDocumentPersistence<T>(document: document)
     }
 }

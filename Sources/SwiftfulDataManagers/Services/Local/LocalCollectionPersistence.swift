@@ -29,36 +29,47 @@ public protocol LocalCollectionPersistence<T>: Sendable {
     associatedtype T: DMProtocol
 
     /// Save the entire collection to local storage
-    /// - Parameter collection: The collection to save
+    /// - Parameters:
+    ///   - managerKey: The key identifying this manager
+    ///   - collection: The collection to save
     /// - Throws: Error if save fails
-    func saveCollection(_ collection: [T]) async throws
+    func saveCollection(managerKey: String, _ collection: [T]) async throws
 
     /// Retrieve the cached collection from local storage
+    /// - Parameter managerKey: The key identifying this manager
     /// - Returns: The cached collection
     /// - Throws: Error if retrieval fails
-    func getCollection() throws -> [T]
+    func getCollection(managerKey: String) throws -> [T]
 
     /// Save a single document to local storage
-    /// - Parameter document: The document to save
+    /// - Parameters:
+    ///   - managerKey: The key identifying this manager
+    ///   - document: The document to save
     /// - Throws: Error if save fails
-    func saveDocument(_ document: T) throws
+    func saveDocument(managerKey: String, _ document: T) throws
 
     /// Delete a single document from local storage
-    /// - Parameter id: The document ID to delete
+    /// - Parameters:
+    ///   - managerKey: The key identifying this manager
+    ///   - id: The document ID to delete
     /// - Throws: Error if delete fails
-    func deleteDocument(id: String) throws
+    func deleteDocument(managerKey: String, id: String) throws
 
     /// Save pending writes to local storage
-    /// - Parameter writes: Array of pending write operations
+    /// - Parameters:
+    ///   - managerKey: The key identifying this manager
+    ///   - writes: Array of pending write operations
     /// - Throws: Error if save fails
-    func savePendingWrites(_ writes: [PendingWrite]) throws
+    func savePendingWrites(managerKey: String, _ writes: [PendingWrite]) throws
 
     /// Retrieve pending writes from local storage
+    /// - Parameter managerKey: The key identifying this manager
     /// - Returns: Array of pending write operations
     /// - Throws: Error if retrieval fails
-    func getPendingWrites() throws -> [PendingWrite]
+    func getPendingWrites(managerKey: String) throws -> [PendingWrite]
 
     /// Clear all pending writes from local storage
+    /// - Parameter managerKey: The key identifying this manager
     /// - Throws: Error if clear fails
-    func clearPendingWrites() throws
+    func clearPendingWrites(managerKey: String) throws
 }

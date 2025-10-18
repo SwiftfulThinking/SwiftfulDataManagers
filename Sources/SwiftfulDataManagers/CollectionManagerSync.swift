@@ -72,11 +72,11 @@ open class CollectionManagerSync<T: DMProtocol> {
         self.logger = logger
 
         // Load cached collection
-        self.currentCollection = (try? local.getCollection()) ?? []
+        self.currentCollection = (try? local.getCollection(managerKey: configuration.managerKey)) ?? []
 
         // Load pending writes if enabled
         if configuration.enablePendingWrites {
-            self.pendingWrites = (try? local.getPendingWrites()) ?? []
+            self.pendingWrites = (try? local.getPendingWrites(managerKey: configuration.managerKey)) ?? []
         }
     }
 
@@ -115,9 +115,9 @@ open class CollectionManagerSync<T: DMProtocol> {
 
             // Clear local persistence
             Task {
-                try? await local.saveCollection([])
+                try? await local.saveCollection(managerKey: configuration.managerKey, [])
             }
-            try? local.savePendingWrites([])
+            try? local.savePendingWrites(managerKey: configuration.managerKey, [])
 
             logger?.trackEvent(event: Event.cachesCleared(key: configuration.managerKey))
         }
@@ -329,7 +329,7 @@ open class CollectionManagerSync<T: DMProtocol> {
         currentCollection = collection
 
         Task {
-            try? await local.saveCollection(collection)
+            try? await local.saveCollection(managerKey: configuration.managerKey, collection)
         }
         logger?.trackEvent(event: Event.collectionUpdated(key: configuration.managerKey, count: collection.count))
     }
@@ -383,7 +383,7 @@ open class CollectionManagerSync<T: DMProtocol> {
 
                 // Save to local persistence
                 Task {
-                    try? await local.saveCollection(currentCollection)
+                    try? await local.saveCollection(managerKey: configuration.managerKey, currentCollection)
                 }
 
                 logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
@@ -417,7 +417,7 @@ open class CollectionManagerSync<T: DMProtocol> {
 
                 // Save to local persistence
                 Task {
-                    try? await local.saveCollection(currentCollection)
+                    try? await local.saveCollection(managerKey: configuration.managerKey, currentCollection)
                 }
 
                 logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
@@ -441,7 +441,7 @@ open class CollectionManagerSync<T: DMProtocol> {
             // If no document ID, just append
             let newWrite = PendingWrite(documentId: nil, fields: data)
             pendingWrites.append(newWrite)
-            try? local.savePendingWrites(pendingWrites)
+            try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
             logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
             return
         }
@@ -461,7 +461,7 @@ open class CollectionManagerSync<T: DMProtocol> {
             pendingWrites.append(newWrite)
         }
 
-        try? local.savePendingWrites(pendingWrites)
+        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
         logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
     }
 
@@ -470,7 +470,7 @@ open class CollectionManagerSync<T: DMProtocol> {
         pendingWrites.removeAll { $0.documentId == documentId }
 
         if originalCount != pendingWrites.count {
-            try? local.savePendingWrites(pendingWrites)
+            try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
             logger?.trackEvent(event: Event.pendingWritesCleared(key: configuration.managerKey, documentId: documentId, remainingCount: pendingWrites.count))
         }
     }
@@ -500,7 +500,7 @@ open class CollectionManagerSync<T: DMProtocol> {
 
         // Update pending writes with only failed ones
         pendingWrites = failedWrites
-        try? local.savePendingWrites(pendingWrites)
+        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
 
         logger?.trackEvent(event: Event.syncPendingWritesComplete(key: configuration.managerKey, synced: successCount, failed: failedWrites.count))
     }

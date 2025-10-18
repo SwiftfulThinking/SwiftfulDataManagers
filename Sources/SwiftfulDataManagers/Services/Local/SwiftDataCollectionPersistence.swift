@@ -24,7 +24,7 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
         self.container = try! ModelContainer(for: DocumentEntity<T>.self)
     }
 
-    public func getCollection() throws -> [T] {
+    public func getCollection(managerKey: String) throws -> [T] {
         let descriptor = FetchDescriptor<DocumentEntity<T>>()
         let entities = try mainContext.fetch(descriptor)
         return try entities.map { try $0.toDocument() }
@@ -32,7 +32,7 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
 
     /// Save entire collection (runs on background thread for better performance)
     /// Uses batch fetch optimization: deletes all and inserts new in one operation
-    nonisolated public func saveCollection(_ collection: [T]) async throws {
+    nonisolated public func saveCollection(managerKey: String, _ collection: [T]) async throws {
         // Create background context - this runs off the main actor
         let backgroundContext = ModelContext(container)
 
@@ -53,7 +53,7 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
         try backgroundContext.save()
     }
 
-    public func saveDocument(_ document: T) throws {
+    public func saveDocument(managerKey: String, _ document: T) throws {
         // Check if document already exists
         let descriptor = FetchDescriptor<DocumentEntity<T>>(
             predicate: #Predicate { $0.id == document.id }
@@ -69,7 +69,7 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
         try mainContext.save()
     }
 
-    public func deleteDocument(id: String) throws {
+    public func deleteDocument(managerKey: String, id: String) throws {
         let descriptor = FetchDescriptor<DocumentEntity<T>>(
             predicate: #Predicate { $0.id == id }
         )
@@ -81,20 +81,20 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
 
     // MARK: - Pending Writes Persistence
 
-    private func pendingWritesFileURL() -> URL {
+    private func pendingWritesFileURL(managerKey: String) -> URL {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return documentsDirectory.appendingPathComponent("CollectionManager_PendingWrites_\(managerKey).json")
     }
 
-    public func savePendingWrites(_ writes: [PendingWrite]) throws {
-        let fileURL = pendingWritesFileURL()
+    public func savePendingWrites(managerKey: String, _ writes: [PendingWrite]) throws {
+        let fileURL = pendingWritesFileURL(managerKey: managerKey)
         let dictionaries = writes.map { $0.toDictionary() }
         let data = try JSONSerialization.data(withJSONObject: dictionaries)
         try data.write(to: fileURL)
     }
 
-    public func getPendingWrites() throws -> [PendingWrite] {
-        let fileURL = pendingWritesFileURL()
+    public func getPendingWrites(managerKey: String) throws -> [PendingWrite] {
+        let fileURL = pendingWritesFileURL(managerKey: managerKey)
         guard let data = try? Data(contentsOf: fileURL) else {
             return []
         }
@@ -104,8 +104,8 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
         return dictionaries.compactMap { PendingWrite.fromDictionary($0) }
     }
 
-    public func clearPendingWrites() throws {
-        let fileURL = pendingWritesFileURL()
+    public func clearPendingWrites(managerKey: String) throws {
+        let fileURL = pendingWritesFileURL(managerKey: managerKey)
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
         }
