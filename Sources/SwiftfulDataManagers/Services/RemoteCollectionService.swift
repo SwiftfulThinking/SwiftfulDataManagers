@@ -51,21 +51,6 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Throws: Error if update fails
     func updateDocument(id: String, data: [String: any Sendable]) async throws
 
-    /// Update a single document field
-    /// - Parameters:
-    ///   - id: The document's unique identifier
-    ///   - field: The field name to update
-    ///   - value: The new value
-    /// - Throws: Error if update fails
-    func updateDocumentField(id: String, field: String, value: any Sendable) async throws
-
-    /// Update multiple document fields
-    /// - Parameters:
-    ///   - id: The document's unique identifier
-    ///   - fields: Dictionary of field names to values
-    /// - Throws: Error if update fails
-    func updateDocumentFields(id: String, fields: [String: any Sendable]) async throws
-
     /// Stream real-time updates for the entire collection
     /// - Returns: An async stream of collection updates (entire array)
     /// - Note: Follows ProgressManager pattern - bulk load all, then stream changes

@@ -96,25 +96,6 @@ open class DocumentManagerAsync<T: DataModelProtocol> {
         }
     }
 
-    /// Update a single field
-    /// - Parameters:
-    ///   - id: The document ID
-    ///   - field: Field name
-    ///   - value: New value
-    /// - Throws: Error if update fails
-    open func updateDocumentField(id: String, field: String, value: any Sendable) async throws {
-        try await updateDocument(id: id, data: [field: value])
-    }
-
-    /// Update multiple fields
-    /// - Parameters:
-    ///   - id: The document ID
-    ///   - fields: Dictionary of fields to update
-    /// - Throws: Error if update fails
-    open func updateDocumentFields(id: String, fields: [String: any Sendable]) async throws {
-        try await updateDocument(id: id, data: fields)
-    }
-
     /// Delete a document
     /// - Parameter id: The document ID
     /// - Throws: Error if deletion fails

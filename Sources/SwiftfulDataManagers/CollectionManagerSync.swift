@@ -228,16 +228,6 @@ open class CollectionManagerSync<T: DataModelProtocol> {
         }
     }
 
-    /// Update a single field
-    /// - Parameters:
-    ///   - id: The document ID
-    ///   - field: Field name
-    ///   - value: New value
-    /// - Throws: Error if update fails
-    open func updateDocumentField(id: String, field: String, value: any Sendable) async throws {
-        try await updateDocument(id: id, data: [field: value])
-    }
-
     /// Delete a document
     /// - Parameter id: The document ID
     /// - Throws: Error if deletion fails
@@ -356,7 +346,7 @@ open class CollectionManagerSync<T: DataModelProtocol> {
             }
 
             do {
-                try await remote.updateDocumentFields(id: documentId, fields: write)
+                try await remote.updateDocument(id: documentId, data: write)
                 successCount += 1
             } catch {
                 failedWrites.append(write)
