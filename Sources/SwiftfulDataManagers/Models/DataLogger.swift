@@ -10,6 +10,7 @@ import Foundation
 /// Protocol for logging data manager events.
 ///
 /// Implement this protocol to integrate with your analytics system.
+@MainActor
 public protocol DataLogger: Sendable {
     /// Track an event
     /// - Parameter event: The event to track

@@ -3,7 +3,8 @@
     "allow": [
       "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulStarterProject/**)",
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd UserManager2 using DocumentManagerSync from SwiftfulDataManagers\n\nCreated UserManager2 that inherits from DocumentManagerSync<UserModel> following the same pattern as ProgressManager, StreakManager, and ExperiencePointsManager.\n\nKey features:\n- Extends DocumentManagerSync for single document management\n- Real-time streaming of user document\n- Local persistence with FileManager\n- Custom event logging for user-specific actions\n- Field-specific update methods (saveUserName, saveUserEmail, etc.)\n\nDependencies will handle initialization with services, configuration, and logger.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(swift test --filter PendingWriteTests)"
+      "Bash(swift test --filter PendingWriteTests)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd comprehensive tests for all 4 data manager classes\n\nCreated test suites for DocumentManagerSync, DocumentManagerAsync, CollectionManagerSync, and CollectionManagerAsync. Tests cover all public APIs including:\n\n- Initialization with and without cached data\n- Document/collection fetching (sync and async)\n- Save, update, and delete operations\n- Query operations with QueryBuilder\n- Error handling for not found scenarios\n- logIn/logOut functionality for sync managers\n\nAll 58 tests pass successfully. Tests use Mock implementations and properly handle Swift 6 concurrency.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

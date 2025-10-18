@@ -82,6 +82,24 @@ open class CollectionManagerSync<T: DMProtocol> {
         }
     }
 
+    /// Initialize the CollectionManagerSync using services pattern
+    /// - Parameters:
+    ///   - services: Combined remote and local services
+    ///   - configuration: Manager configuration
+    ///   - logger: Optional logger for analytics
+    public convenience init<S: CollectionSyncServices>(
+        services: S,
+        configuration: DataManagerConfiguration,
+        logger: (any DataLogger)? = nil
+    ) where S.T == T {
+        self.init(
+            remote: services.remote,
+            local: services.local,
+            configuration: configuration,
+            logger: logger
+        )
+    }
+
     // MARK: - Public Methods
 
     /// Log in and start listening for collection updates

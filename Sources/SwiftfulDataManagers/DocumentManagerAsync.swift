@@ -49,6 +49,23 @@ open class DocumentManagerAsync<T: DMProtocol> {
         self.logger = logger
     }
 
+    /// Initialize the DocumentManagerAsync using services pattern
+    /// - Parameters:
+    ///   - services: Remote service provider
+    ///   - configuration: Manager configuration
+    ///   - logger: Optional logger for analytics
+    public convenience init<S: DocumentAsyncServices>(
+        services: S,
+        configuration: DataManagerConfiguration,
+        logger: (any DataLogger)? = nil
+    ) where S.T == T {
+        self.init(
+            remote: services.remote,
+            configuration: configuration,
+            logger: logger
+        )
+    }
+
     // MARK: - Public Methods
 
     /// Get a document by ID from remote
@@ -56,14 +73,14 @@ open class DocumentManagerAsync<T: DMProtocol> {
     /// - Returns: The document
     /// - Throws: Error if get fails
     open func getDocument(id: String) async throws -> T {
-        logger?.trackEvent(event: Event.getStart(key: configuration.managerKey, documentId: id))
+        await logger?.trackEvent(event: Event.getStart(key: configuration.managerKey, documentId: id))
 
         do {
             let document = try await remote.getDocument(id: id)
-            logger?.trackEvent(event: Event.getSuccess(key: configuration.managerKey, documentId: id))
+            await logger?.trackEvent(event: Event.getSuccess(key: configuration.managerKey, documentId: id))
             return document
         } catch {
-            logger?.trackEvent(event: Event.getFail(key: configuration.managerKey, documentId: id, error: error))
+            await logger?.trackEvent(event: Event.getFail(key: configuration.managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -72,13 +89,13 @@ open class DocumentManagerAsync<T: DMProtocol> {
     /// - Parameter document: The document to save
     /// - Throws: Error if save fails
     open func saveDocument(_ document: T) async throws {
-        logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
+        await logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
 
         do {
             try await remote.saveDocument(document)
-            logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
+            await logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
         } catch {
-            logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
+            await logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
             throw error
         }
     }
@@ -89,13 +106,13 @@ open class DocumentManagerAsync<T: DMProtocol> {
     ///   - data: Dictionary of fields to update
     /// - Throws: Error if update fails
     open func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws {
-        logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
+        await logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
 
         do {
             try await remote.updateDocument(id: id, data: data)
-            logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: id))
+            await logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: id))
         } catch {
-            logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: id, error: error))
+            await logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -104,13 +121,13 @@ open class DocumentManagerAsync<T: DMProtocol> {
     /// - Parameter id: The document ID
     /// - Throws: Error if deletion fails
     open func deleteDocument(id: String) async throws {
-        logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: id))
+        await logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: id))
 
         do {
             try await remote.deleteDocument(id: id)
-            logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: id))
+            await logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: id))
         } catch {
-            logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: id, error: error))
+            await logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: id, error: error))
             throw error
         }
     }
