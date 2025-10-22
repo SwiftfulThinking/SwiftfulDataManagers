@@ -21,11 +21,11 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
     public init(managerKey: String) {
         self.managerKey = managerKey
         // swiftlint:disable:next force_try
-        self.container = try! ModelContainer(for: DocumentEntity<T>.self)
+        self.container = try! ModelContainer(for: DocumentEntity.self)
     }
 
     public func getCollection(managerKey: String) throws -> [T] {
-        let descriptor = FetchDescriptor<DocumentEntity<T>>()
+        let descriptor = FetchDescriptor<DocumentEntity>()
         let entities = try mainContext.fetch(descriptor)
         return try entities.map { try $0.toDocument() }
     }
@@ -37,7 +37,7 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
         let backgroundContext = ModelContext(container)
 
         // Delete all existing
-        let descriptor = FetchDescriptor<DocumentEntity<T>>()
+        let descriptor = FetchDescriptor<DocumentEntity>()
         let allEntities = (try? backgroundContext.fetch(descriptor)) ?? []
         for entity in allEntities {
             backgroundContext.delete(entity)
@@ -55,7 +55,7 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
 
     public func saveDocument(managerKey: String, _ document: T) throws {
         // Check if document already exists
-        let descriptor = FetchDescriptor<DocumentEntity<T>>(
+        let descriptor = FetchDescriptor<DocumentEntity>(
             predicate: #Predicate { $0.id == document.id }
         )
         if let existing = try? mainContext.fetch(descriptor).first {
@@ -70,7 +70,7 @@ public final class SwiftDataCollectionPersistence<T: DMProtocol>: LocalCollectio
     }
 
     public func deleteDocument(managerKey: String, id: String) throws {
-        let descriptor = FetchDescriptor<DocumentEntity<T>>(
+        let descriptor = FetchDescriptor<DocumentEntity>(
             predicate: #Predicate { $0.id == id }
         )
         if let entity = try? mainContext.fetch(descriptor).first {
