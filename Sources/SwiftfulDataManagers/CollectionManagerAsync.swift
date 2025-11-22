@@ -87,11 +87,9 @@ open class CollectionManagerAsync<T: DMProtocol> {
     /// Stream real-time updates for a single document
     /// - Parameter id: The document ID
     /// - Returns: An async stream of document updates (nil if document is deleted)
-    open func streamDocument(id: String) -> AsyncThrowingStream<T?, Error> {
-        Task {
-            await logger?.trackEvent(event: Event.streamDocumentStart(key: configuration.managerKey, documentId: id))
-        }
-        return service.streamDocument(id: id)
+    open func streamDocument(id: String) async -> AsyncThrowingStream<T?, Error> {
+        await logger?.trackEvent(event: Event.streamDocumentStart(key: configuration.managerKey, documentId: id))
+        return await service.streamDocument(id: id)
     }
 
     /// Save a complete document
