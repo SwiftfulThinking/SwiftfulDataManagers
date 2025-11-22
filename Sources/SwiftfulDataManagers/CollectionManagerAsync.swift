@@ -84,6 +84,16 @@ open class CollectionManagerAsync<T: DMProtocol> {
         }
     }
 
+    /// Stream real-time updates for a single document
+    /// - Parameter id: The document ID
+    /// - Returns: An async stream of document updates (nil if document is deleted)
+    open func streamDocument(id: String) -> AsyncThrowingStream<T?, Error> {
+        Task {
+            await logger?.trackEvent(event: Event.streamDocumentStart(key: configuration.managerKey, documentId: id))
+        }
+        return service.streamDocument(id: id)
+    }
+
     /// Save a complete document
     /// - Parameter document: The document to save
     /// - Throws: Error if save fails
@@ -160,6 +170,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
         case getDocumentStart(key: String, documentId: String)
         case getDocumentSuccess(key: String, documentId: String)
         case getDocumentFail(key: String, documentId: String, error: Error)
+        case streamDocumentStart(key: String, documentId: String)
         case getDocumentsQueryStart(key: String, filterCount: Int)
         case getDocumentsQuerySuccess(key: String, count: Int, filterCount: Int)
         case getDocumentsQueryFail(key: String, filterCount: Int, error: Error)
@@ -181,6 +192,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
             case .getDocumentStart(let key, _):         return "\(key)_getDocument_start"
             case .getDocumentSuccess(let key, _):       return "\(key)_getDocument_success"
             case .getDocumentFail(let key, _, _):       return "\(key)_getDocument_fail"
+            case .streamDocumentStart(let key, _):      return "\(key)_streamDocument_start"
             case .getDocumentsQueryStart(let key, _):       return "\(key)_getDocumentsQuery_start"
             case .getDocumentsQuerySuccess(let key, _, _):  return "\(key)_getDocumentsQuery_success"
             case .getDocumentsQueryFail(let key, _, _):     return "\(key)_getDocumentsQuery_fail"
@@ -213,6 +225,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
                 dict["filter_count"] = filterCount
                 dict.merge(error.eventParameters)
             case .getDocumentStart(_, let documentId), .getDocumentSuccess(_, let documentId),
+                 .streamDocumentStart(_, let documentId),
                  .saveStart(_, let documentId), .saveSuccess(_, let documentId),
                  .updateStart(_, let documentId), .updateSuccess(_, let documentId),
                  .deleteStart(_, let documentId), .deleteSuccess(_, let documentId):
