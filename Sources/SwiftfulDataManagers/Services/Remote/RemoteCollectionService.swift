@@ -39,6 +39,11 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Throws: Error if document not found or fetch fails
     func getDocument(id: String) async throws -> T
 
+    /// Stream real-time updates for a document
+    /// - Parameter id: The document's unique identifier
+    /// - Returns: An async stream of document updates (nil if document is deleted)
+    func streamDocument(id: String) -> AsyncThrowingStream<T?, Error>
+
     /// Create or update a document
     /// - Parameter model: The document model to save
     /// - Throws: Error if save fails

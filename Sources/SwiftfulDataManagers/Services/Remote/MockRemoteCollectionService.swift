@@ -40,6 +40,17 @@ public final class MockRemoteCollectionService<T: DMProtocol>: RemoteCollectionS
         return document
     }
 
+    public nonisolated func streamDocument(id: String) -> AsyncThrowingStream<T?, Error> {
+        AsyncThrowingStream { continuation in
+            Task { @MainActor in
+                let document = self.currentCollection.first(where: { $0.id == id })
+                continuation.yield(document)
+
+                continuation.onTermination = { @Sendable _ in }
+            }
+        }
+    }
+
     public func saveDocument(_ model: T) async throws {
         try await Task.sleep(for: .seconds(0.5))
 
