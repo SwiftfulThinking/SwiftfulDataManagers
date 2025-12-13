@@ -383,10 +383,18 @@ open class CollectionManagerSync<T: DMProtocol> {
     }
 
     private func handleCollectionUpdates(_ updates: AsyncThrowingStream<T, Error>) async {
+        var isFirstUpdate = true
+
         do {
             for try await document in updates {
                 // Reset retry count on successful connection
                 self.listenerRetryCount = 0
+
+                // Log success only on first update (listener connected successfully)
+                if isFirstUpdate {
+                    logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
+                    isFirstUpdate = false
+                }
 
                 // Update or add document in collection
                 if let index = currentCollection.firstIndex(where: { $0.id == document.id }) {
@@ -399,8 +407,6 @@ open class CollectionManagerSync<T: DMProtocol> {
                 Task {
                     try? await local.saveCollection(managerKey: configuration.managerKey, currentCollection)
                 }
-
-                logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
             }
         } catch {
             logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
@@ -434,7 +440,7 @@ open class CollectionManagerSync<T: DMProtocol> {
                     try? await local.saveCollection(managerKey: configuration.managerKey, currentCollection)
                 }
 
-                logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
+                // Note: No listener_success event here - deletions are rare and already tracked via collectionUpdated
             }
         } catch {
             logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
