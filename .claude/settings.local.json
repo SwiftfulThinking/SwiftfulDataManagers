@@ -3,7 +3,9 @@
     "allow": [
       "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulAuthenticating/**)",
       "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulLogging/**)",
-      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulPurchasing/**)"
+      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulPurchasing/**)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd CLAUDE.md and README.md documentation\n\nAdded comprehensive documentation following Swiftful package patterns:\n\nCLAUDE.md:\n- Build and test commands\n- Architecture overview explaining 4 manager types\n- Key architectural decisions (services pattern, manager key pattern, etc.)\n- Protocol hierarchy and relationships\n- Testing patterns and common gotchas\n- Related packages context\n\nREADME.md:\n- Following exact style of other Swiftful packages\n- Quick examples and setup instructions\n- Collapsible sections for detailed information\n- Document and Collection management guides\n- Local persistence options\n- Analytics integration\n- Mock factories for testing\n- Architecture diagrams\n- Contributing guidelines\n\nBoth files provide clear guidance for using and understanding the SwiftfulDataManagers package.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Read(//Users/nicksarno/Documents/documents/GITHUB/SwiftfulLoggingFirebaseAnalytics/**)"
     ],
     "deny": [],
     "ask": []
