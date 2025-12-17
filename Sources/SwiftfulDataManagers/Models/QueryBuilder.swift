@@ -25,7 +25,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field equals value
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, isEqualTo value: any DMCodableSendable) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .isEqualTo, value: value))
         return self
@@ -33,7 +32,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field does not equal value
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, isNotEqualTo value: any DMCodableSendable) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .isNotEqualTo, value: value))
         return self
@@ -43,7 +41,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field is greater than value
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, isGreaterThan value: any DMCodableSendable) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .isGreaterThan, value: value))
         return self
@@ -51,7 +48,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field is greater than or equal to value
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, isGreaterThanOrEqualTo value: any DMCodableSendable) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .isGreaterThanOrEqualTo, value: value))
         return self
@@ -59,7 +55,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field is less than value
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, isLessThan value: any DMCodableSendable) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .isLessThan, value: value))
         return self
@@ -67,7 +62,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field is less than or equal to value
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, isLessThanOrEqualTo value: any DMCodableSendable) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .isLessThanOrEqualTo, value: value))
         return self
@@ -77,7 +71,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field array contains value
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, arrayContains value: any DMCodableSendable) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .arrayContains, value: value))
         return self
@@ -85,7 +78,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field array contains any of the values
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, arrayContainsAny values: [any DMCodableSendable]) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .arrayContainsAny, value: values))
         return self
@@ -100,7 +92,6 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field is not in array of values
     @discardableResult
-    @Sendable
     public func `where`(_ field: String, notIn values: [any DMCodableSendable]) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .notIn, value: values))
         return self

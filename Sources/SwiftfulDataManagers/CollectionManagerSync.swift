@@ -229,7 +229,7 @@ open class CollectionManagerSync<T: DMProtocol> {
     /// - Parameter buildQuery: Closure to build the query
     /// - Returns: Array of documents matching the query filters from remote
     /// - Throws: Error if query fails
-    public func getDocumentsAsync(buildQuery: (QueryBuilder) -> QueryBuilder) async throws -> [T] {
+    public func getDocumentsAsync(buildQuery: @Sendable (QueryBuilder) -> QueryBuilder) async throws -> [T] {
         defer {
             if listenerFailedToAttach {
                 startListener()

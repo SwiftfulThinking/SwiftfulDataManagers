@@ -143,7 +143,7 @@ open class CollectionManagerAsync<T: DMProtocol> {
     /// - Parameter buildQuery: Closure to build the query
     /// - Returns: Array of documents matching the query filters from remote
     /// - Throws: Error if query fails
-    open func getDocuments(buildQuery: (QueryBuilder) -> QueryBuilder) async throws -> [T] {
+    open func getDocuments(buildQuery: @Sendable (QueryBuilder) -> QueryBuilder) async throws -> [T] {
         let query = buildQuery(QueryBuilder())
         let filterCount = query.getFilters().count
 
