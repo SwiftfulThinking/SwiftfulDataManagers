@@ -514,6 +514,10 @@ Events are prefixed with the `managerKey`:
 
 </details>
 
+## Future Features
+
+- Keychain persistence support for `DocumentSyncEngine` (secure storage for sensitive single-document data like tokens, credentials, or user secrets)
+
 ## Claude Code
 
 This package includes a `.claude/swiftful-data-managers-rules.md` with usage guidelines and integration advice for projects using [Claude Code](https://claude.ai/claude-code).
