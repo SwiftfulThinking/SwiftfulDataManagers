@@ -25,10 +25,10 @@ Import the package.
 import SwiftfulDataManagers
 ```
 
-Conform your models to `DMProtocol`:
+Conform your models to `DataSyncModelProtocol`:
 
 ```swift
-struct UserModel: DMProtocol {
+struct UserModel: DataSyncModelProtocol {
     let id: String
     var name: String
     var age: Int
@@ -73,7 +73,7 @@ let productsEngine = CollectionSyncEngine<Product>(...)
 ```swift
 let engine = DocumentSyncEngine<UserModel>(
     remote: FirebaseRemoteDocumentService(collectionPath: { "users" }),
-    configuration: DataManagerSyncConfiguration(managerKey: "user"),
+    managerKey: "user",
     enableLocalPersistence: true,
     logger: logManager
 )
@@ -159,7 +159,7 @@ struct ProfileView: View {
 ```swift
 let engine = CollectionSyncEngine<Product>(
     remote: FirebaseRemoteCollectionService(collectionPath: { "products" }),
-    configuration: DataManagerSyncConfiguration(managerKey: "products"),
+    managerKey: "products",
     enableLocalPersistence: true,
     logger: logManager
 )
@@ -265,13 +265,13 @@ class UserManager {
 
     init(
         remote: any RemoteDocumentService<UserModel>,
-        configuration: DataManagerSyncConfiguration,
+        managerKey: String,
         enableLocalPersistence: Bool = true,
         logger: (any DataLogger)? = nil
     ) {
         self.engine = DocumentSyncEngine(
             remote: remote,
-            configuration: configuration,
+            managerKey: managerKey,
             enableLocalPersistence: enableLocalPersistence,
             logger: logger
         )
@@ -315,19 +315,19 @@ class ContentManager {
     ) {
         self.moviesEngine = CollectionSyncEngine(
             remote: moviesRemote,
-            configuration: DataManagerSyncConfiguration(managerKey: "movies"),
+            managerKey: "movies",
             enableLocalPersistence: true,
             logger: logger
         )
         self.tvShowsEngine = CollectionSyncEngine(
             remote: tvShowsRemote,
-            configuration: DataManagerSyncConfiguration(managerKey: "tvShows"),
+            managerKey: "tvShows",
             enableLocalPersistence: false,
             logger: logger
         )
         self.watchlistEngine = CollectionSyncEngine(
             remote: watchlistRemote,
-            configuration: DataManagerSyncConfiguration(managerKey: "watchlist"),
+            managerKey: "watchlist",
             enableLocalPersistence: true,
             logger: logger
         )
@@ -361,7 +361,7 @@ let engine = CollectionSyncEngine<WatchlistItem>(
             return "users/\(uid)/watchlist"
         }
     ),
-    configuration: DataManagerSyncConfiguration(managerKey: "watchlist")
+    managerKey: "watchlist")
 )
 
 // On sign-in: closure resolves to new user's path
@@ -440,21 +440,21 @@ Mock implementations are included for SwiftUI previews and testing.
 // Production
 let engine = DocumentSyncEngine<UserModel>(
     remote: FirebaseRemoteDocumentService(collectionPath: { "users" }),
-    configuration: DataManagerSyncConfiguration(managerKey: "user"),
+    managerKey: "user",
     logger: logManager
 )
 
 // Mock — no persistence, no real remote
 let engine = DocumentSyncEngine<UserModel>(
     remote: MockRemoteDocumentService(document: .mock),
-    configuration: DataManagerSyncConfiguration(managerKey: "test"),
+    managerKey: "test",
     enableLocalPersistence: false
 )
 
 // Mock collection
 let engine = CollectionSyncEngine<Product>(
     remote: MockRemoteCollectionService(collection: Product.mocks),
-    configuration: DataManagerSyncConfiguration(managerKey: "test"),
+    managerKey: "test",
     enableLocalPersistence: false
 )
 ```
@@ -469,10 +469,6 @@ MockRemoteCollectionService<T>(collection: T.mocks)
 // Local persistence (for custom implementations)
 MockLocalDocumentPersistence<T>(document: T.mock)
 MockLocalCollectionPersistence<T>(collection: T.mocks)
-
-// Configuration
-DataManagerSyncConfiguration.mock()
-DataManagerSyncConfiguration.mock(managerKey: "custom")
 ```
 
 </details>

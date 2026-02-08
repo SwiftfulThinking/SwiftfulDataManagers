@@ -17,7 +17,7 @@ import Observation
 /// ```swift
 /// let engine = DocumentSyncEngine<UserModel>(
 ///     remote: FirebaseRemoteDocumentService(collectionPath: { "users" }),
-///     configuration: DataManagerSyncConfiguration(managerKey: "user", enablePendingWrites: true),
+///     managerKey: "user",
 ///     logger: logManager
 /// )
 ///
@@ -37,7 +37,7 @@ import Observation
 /// ```
 @MainActor
 @Observable
-public final class DocumentSyncEngine<T: DMProtocol> {
+public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
 
     // MARK: - Public Properties
 
@@ -51,7 +51,7 @@ public final class DocumentSyncEngine<T: DMProtocol> {
 
     internal let remote: any RemoteDocumentService<T>
     internal let local: (any LocalDocumentPersistence<T>)?
-    internal let configuration: DataManagerSyncConfiguration
+    internal let managerKey: String
     internal let enableLocalPersistence: Bool
 
     // MARK: - Private Properties
@@ -68,17 +68,17 @@ public final class DocumentSyncEngine<T: DMProtocol> {
     /// Initialize the DocumentSyncEngine.
     /// - Parameters:
     ///   - remote: The remote document service (e.g., FirebaseRemoteDocumentService)
-    ///   - configuration: Manager configuration (managerKey)
+    ///   - managerKey: Unique key for local persistence paths and analytics event prefixes (e.g., "user", "settings")
     ///   - enableLocalPersistence: Whether to persist the document locally via FileManager and enable pending writes. Default `true`.
     ///   - logger: Optional logger for analytics events.
     public init(
         remote: any RemoteDocumentService<T>,
-        configuration: DataManagerSyncConfiguration,
+        managerKey: String,
         enableLocalPersistence: Bool = true,
         logger: (any DataLogger)? = nil
     ) {
         self.remote = remote
-        self.configuration = configuration
+        self.managerKey = managerKey
         self.enableLocalPersistence = enableLocalPersistence
         self.logger = logger
 
@@ -87,11 +87,11 @@ public final class DocumentSyncEngine<T: DMProtocol> {
             self.local = persistence
 
             // Load cached document and document ID from local storage
-            self.currentDocument = try? persistence.getDocument(managerKey: configuration.managerKey)
-            self.documentId = try? persistence.getDocumentId(managerKey: configuration.managerKey)
+            self.currentDocument = try? persistence.getDocument(managerKey: managerKey)
+            self.documentId = try? persistence.getDocumentId(managerKey: managerKey)
 
             // Load pending writes
-            self.pendingWrites = (try? persistence.getPendingWrites(managerKey: configuration.managerKey)) ?? []
+            self.pendingWrites = (try? persistence.getPendingWrites(managerKey: managerKey)) ?? []
         } else {
             self.local = nil
         }
@@ -117,7 +117,7 @@ public final class DocumentSyncEngine<T: DMProtocol> {
         // Only update documentId if it's different
         if self.documentId != documentId {
             self.documentId = documentId
-            try? local?.saveDocumentId(managerKey: configuration.managerKey, documentId)
+            try? local?.saveDocumentId(managerKey: managerKey, documentId)
         }
 
         // Sync pending writes if enabled and available
@@ -134,7 +134,7 @@ public final class DocumentSyncEngine<T: DMProtocol> {
     /// - Parameter clearCaches: If true (default), clears `currentDocument`, document ID,
     ///   pending writes, and all local persistence. If false, only cancels the listener.
     public func stopListening(clearCaches: Bool = true) {
-        logger?.trackEvent(event: Event.listenerStopped(key: configuration.managerKey))
+        logger?.trackEvent(event: Event.listenerStopped(key: managerKey))
         stopListener()
 
         if clearCaches {
@@ -145,12 +145,12 @@ public final class DocumentSyncEngine<T: DMProtocol> {
 
             // Clear local persistence
             if enableLocalPersistence {
-                try? local?.saveDocument(managerKey: configuration.managerKey, nil)
-                try? local?.saveDocumentId(managerKey: configuration.managerKey, nil)
-                try? local?.savePendingWrites(managerKey: configuration.managerKey, [])
+                try? local?.saveDocument(managerKey: managerKey, nil)
+                try? local?.saveDocumentId(managerKey: managerKey, nil)
+                try? local?.savePendingWrites(managerKey: managerKey, [])
             }
 
-            logger?.trackEvent(event: Event.cachesCleared(key: configuration.managerKey))
+            logger?.trackEvent(event: Event.cachesCleared(key: managerKey))
         }
     }
 
@@ -197,14 +197,14 @@ public final class DocumentSyncEngine<T: DMProtocol> {
         }
 
         // Fetch from remote
-        logger?.trackEvent(event: Event.getDocumentStart(key: configuration.managerKey, documentId: resolvedId))
+        logger?.trackEvent(event: Event.getDocumentStart(key: managerKey, documentId: resolvedId))
 
         do {
             let document = try await remote.getDocument(id: resolvedId)
-            logger?.trackEvent(event: Event.getDocumentSuccess(key: configuration.managerKey, documentId: resolvedId))
+            logger?.trackEvent(event: Event.getDocumentSuccess(key: managerKey, documentId: resolvedId))
             return document
         } catch {
-            logger?.trackEvent(event: Event.getDocumentFail(key: configuration.managerKey, documentId: resolvedId, error: error))
+            logger?.trackEvent(event: Event.getDocumentFail(key: managerKey, documentId: resolvedId, error: error))
             throw error
         }
     }
@@ -231,18 +231,18 @@ public final class DocumentSyncEngine<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
+        logger?.trackEvent(event: Event.saveStart(key: managerKey, documentId: document.id))
 
         do {
             try await remote.saveDocument(document)
-            logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
+            logger?.trackEvent(event: Event.saveSuccess(key: managerKey, documentId: document.id))
 
             // Clear pending writes since full document save succeeded
             if enableLocalPersistence && !pendingWrites.isEmpty {
                 clearPendingWrites()
             }
         } catch {
-            logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
+            logger?.trackEvent(event: Event.saveFail(key: managerKey, documentId: document.id, error: error))
             throw error
         }
     }
@@ -265,18 +265,18 @@ public final class DocumentSyncEngine<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: resolvedId))
+        logger?.trackEvent(event: Event.updateStart(key: managerKey, documentId: resolvedId))
 
         do {
             try await remote.updateDocument(id: resolvedId, data: data)
-            logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: resolvedId))
+            logger?.trackEvent(event: Event.updateSuccess(key: managerKey, documentId: resolvedId))
 
             // Clear pending writes since update succeeded
             if enableLocalPersistence && !pendingWrites.isEmpty {
                 clearPendingWrites()
             }
         } catch {
-            logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: resolvedId, error: error))
+            logger?.trackEvent(event: Event.updateFail(key: managerKey, documentId: resolvedId, error: error))
 
             // Add to pending writes if enabled
             if enableLocalPersistence {
@@ -303,15 +303,15 @@ public final class DocumentSyncEngine<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: resolvedId))
+        logger?.trackEvent(event: Event.deleteStart(key: managerKey, documentId: resolvedId))
 
         do {
             try await remote.deleteDocument(id: resolvedId)
-            logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: resolvedId))
+            logger?.trackEvent(event: Event.deleteSuccess(key: managerKey, documentId: resolvedId))
             stopListener()
             handleDocumentUpdate(nil)
         } catch {
-            logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: resolvedId, error: error))
+            logger?.trackEvent(event: Event.deleteFail(key: managerKey, documentId: resolvedId, error: error))
             throw error
         }
     }
@@ -322,14 +322,14 @@ public final class DocumentSyncEngine<T: DMProtocol> {
         currentDocument = document
 
         if let document {
-            try? local?.saveDocument(managerKey: configuration.managerKey, document)
-            logger?.trackEvent(event: Event.documentUpdated(key: configuration.managerKey, documentId: document.id))
+            try? local?.saveDocument(managerKey: managerKey, document)
+            logger?.trackEvent(event: Event.documentUpdated(key: managerKey, documentId: document.id))
 
             // Add document properties to logger
             logger?.addUserProperties(dict: document.eventParameters, isHighPriority: true)
         } else {
-            try? local?.saveDocument(managerKey: configuration.managerKey, nil)
-            logger?.trackEvent(event: Event.documentDeleted(key: configuration.managerKey))
+            try? local?.saveDocument(managerKey: managerKey, nil)
+            logger?.trackEvent(event: Event.documentDeleted(key: managerKey))
         }
     }
 
@@ -338,7 +338,7 @@ public final class DocumentSyncEngine<T: DMProtocol> {
     private func startListener() {
         guard let documentId else { return }
 
-        logger?.trackEvent(event: Event.listenerStart(key: configuration.managerKey, documentId: documentId))
+        logger?.trackEvent(event: Event.listenerStart(key: managerKey, documentId: documentId))
         listenerFailedToAttach = false
 
         currentDocumentListenerTask?.cancel()
@@ -353,20 +353,20 @@ public final class DocumentSyncEngine<T: DMProtocol> {
                     handleDocumentUpdate(document)
 
                     if document != nil {
-                        logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, documentId: documentId))
+                        logger?.trackEvent(event: Event.listenerSuccess(key: managerKey, documentId: documentId))
                     } else {
-                        logger?.trackEvent(event: Event.listenerEmpty(key: configuration.managerKey, documentId: documentId))
+                        logger?.trackEvent(event: Event.listenerEmpty(key: managerKey, documentId: documentId))
                     }
                 }
             } catch {
-                logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, documentId: documentId, error: error))
+                logger?.trackEvent(event: Event.listenerFail(key: managerKey, documentId: documentId, error: error))
                 self.listenerFailedToAttach = true
 
                 // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
                 self.listenerRetryCount += 1
                 let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
 
-                logger?.trackEvent(event: Event.listenerRetrying(key: configuration.managerKey, documentId: documentId, retryCount: self.listenerRetryCount, delaySeconds: delay))
+                logger?.trackEvent(event: Event.listenerRetrying(key: managerKey, documentId: documentId, retryCount: self.listenerRetryCount, delaySeconds: delay))
 
                 // Schedule retry with exponential backoff
                 self.listenerRetryTask?.cancel()
@@ -402,20 +402,20 @@ public final class DocumentSyncEngine<T: DMProtocol> {
             pendingWrites.append(newWrite)
         }
 
-        try? local?.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
-        logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
+        logger?.trackEvent(event: Event.pendingWriteAdded(key: managerKey, count: pendingWrites.count))
     }
 
     private func clearPendingWrites() {
         pendingWrites = []
-        try? local?.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
-        logger?.trackEvent(event: Event.pendingWritesCleared(key: configuration.managerKey))
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
+        logger?.trackEvent(event: Event.pendingWritesCleared(key: managerKey))
     }
 
     private func syncPendingWrites() async {
         guard let documentId, !pendingWrites.isEmpty else { return }
 
-        logger?.trackEvent(event: Event.syncPendingWritesStart(key: configuration.managerKey, count: pendingWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesStart(key: managerKey, count: pendingWrites.count))
 
         var successCount = 0
         var failedWrites: [PendingWrite] = []
@@ -431,9 +431,9 @@ public final class DocumentSyncEngine<T: DMProtocol> {
 
         // Update pending writes with only failed ones
         pendingWrites = failedWrites
-        try? local?.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
 
-        logger?.trackEvent(event: Event.syncPendingWritesComplete(key: configuration.managerKey, synced: successCount, failed: failedWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesComplete(key: managerKey, synced: successCount, failed: failedWrites.count))
     }
 
     // MARK: - Errors

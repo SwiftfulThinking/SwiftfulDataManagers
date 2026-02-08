@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct FileManagerDocumentPersistence<T: DMProtocol>: LocalDocumentPersistence {
+public struct FileManagerDocumentPersistence<T: DataSyncModelProtocol>: LocalDocumentPersistence {
 
     public init() { }
 

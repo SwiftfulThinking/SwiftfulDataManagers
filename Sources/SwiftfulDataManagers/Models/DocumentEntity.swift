@@ -12,7 +12,7 @@ import SwiftData
 ///
 /// **Architecture Note:**
 /// This is the persistence layer model used exclusively by SwiftDataCollectionPersistence.
-/// The public API uses DMProtocol conforming structs for data transfer.
+/// The public API uses DataSyncModelProtocol conforming structs for data transfer.
 /// Conversion between DocumentEntity and document models happens in the persistence layer.
 ///
 /// **SwiftData Constraint:**
@@ -49,12 +49,12 @@ public final class DocumentEntity {
     // MARK: - Conversion
 
     /// Convert to public document model
-    public func toDocument<T: DMProtocol>() throws -> T {
+    public func toDocument<T: DataSyncModelProtocol>() throws -> T {
         return try JSONDecoder().decode(T.self, from: documentData)
     }
 
     /// Create entity from public document model
-    public static func from<T: DMProtocol>(_ document: T) throws -> DocumentEntity {
+    public static func from<T: DataSyncModelProtocol>(_ document: T) throws -> DocumentEntity {
         let data = try JSONEncoder().encode(document)
         return DocumentEntity(
             id: document.id,
@@ -65,7 +65,7 @@ public final class DocumentEntity {
     }
 
     /// Update this entity with values from document
-    public func update<T: DMProtocol>(from document: T) throws {
+    public func update<T: DataSyncModelProtocol>(from document: T) throws {
         self.id = document.id
         self.documentData = try JSONEncoder().encode(document)
         self.dateModified = Date()

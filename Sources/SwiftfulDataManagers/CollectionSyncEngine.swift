@@ -19,7 +19,7 @@ import Observation
 /// ```swift
 /// let engine = CollectionSyncEngine<Product>(
 ///     remote: FirebaseRemoteCollectionService(collectionPath: { "products" }),
-///     configuration: DataManagerSyncConfiguration(managerKey: "products", enablePendingWrites: true),
+///     managerKey: "products",
 ///     logger: logManager
 /// )
 ///
@@ -39,7 +39,7 @@ import Observation
 /// ```
 @MainActor
 @Observable
-public final class CollectionSyncEngine<T: DMProtocol> {
+public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
 
     // MARK: - Public Properties
 
@@ -53,7 +53,7 @@ public final class CollectionSyncEngine<T: DMProtocol> {
 
     internal let remote: any RemoteCollectionService<T>
     internal let local: (any LocalCollectionPersistence<T>)?
-    internal let configuration: DataManagerSyncConfiguration
+    internal let managerKey: String
     internal let enableLocalPersistence: Bool
 
     // MARK: - Private Properties
@@ -70,29 +70,29 @@ public final class CollectionSyncEngine<T: DMProtocol> {
     /// Initialize the CollectionSyncEngine.
     /// - Parameters:
     ///   - remote: The remote collection service (e.g., FirebaseRemoteCollectionService)
-    ///   - configuration: Manager configuration (managerKey)
+    ///   - managerKey: Unique key for local persistence paths and analytics event prefixes (e.g., "products", "watchlist")
     ///   - enableLocalPersistence: Whether to persist the collection locally via SwiftData and enable pending writes. Default `true`.
     ///   - logger: Optional logger for analytics events.
     public init(
         remote: any RemoteCollectionService<T>,
-        configuration: DataManagerSyncConfiguration,
+        managerKey: String,
         enableLocalPersistence: Bool = true,
         logger: (any DataLogger)? = nil
     ) {
         self.remote = remote
-        self.configuration = configuration
+        self.managerKey = managerKey
         self.enableLocalPersistence = enableLocalPersistence
         self.logger = logger
 
         if enableLocalPersistence {
-            let persistence = SwiftDataCollectionPersistence<T>(managerKey: configuration.managerKey)
+            let persistence = SwiftDataCollectionPersistence<T>(managerKey: managerKey)
             self.local = persistence
 
             // Load cached collection from local storage
-            self.currentCollection = (try? persistence.getCollection(managerKey: configuration.managerKey)) ?? []
+            self.currentCollection = (try? persistence.getCollection(managerKey: managerKey)) ?? []
 
             // Load pending writes
-            self.pendingWrites = (try? persistence.getPendingWrites(managerKey: configuration.managerKey)) ?? []
+            self.pendingWrites = (try? persistence.getPendingWrites(managerKey: managerKey)) ?? []
         } else {
             self.local = nil
         }
@@ -107,7 +107,7 @@ public final class CollectionSyncEngine<T: DMProtocol> {
     /// 2. Bulk load the entire collection from remote
     /// 3. Start streaming individual document changes (adds, updates, deletions)
     public func startListening() async {
-        logger?.trackEvent(event: Event.listenerStart(key: configuration.managerKey))
+        logger?.trackEvent(event: Event.listenerStart(key: managerKey))
 
         // Sync pending writes if enabled and available
         if enableLocalPersistence && !pendingWrites.isEmpty {
@@ -124,7 +124,7 @@ public final class CollectionSyncEngine<T: DMProtocol> {
     /// - Parameter clearCaches: If true (default), clears `currentCollection`, pending writes,
     ///   and all local persistence. If false, only cancels the listeners.
     public func stopListening(clearCaches: Bool = true) {
-        logger?.trackEvent(event: Event.listenerStopped(key: configuration.managerKey))
+        logger?.trackEvent(event: Event.listenerStopped(key: managerKey))
         stopListener()
 
         if clearCaches {
@@ -135,12 +135,12 @@ public final class CollectionSyncEngine<T: DMProtocol> {
             // Clear local persistence
             if enableLocalPersistence {
                 Task {
-                    try? await local?.saveCollection(managerKey: configuration.managerKey, [])
+                    try? await local?.saveCollection(managerKey: managerKey, [])
                 }
-                try? local?.savePendingWrites(managerKey: configuration.managerKey, [])
+                try? local?.savePendingWrites(managerKey: managerKey, [])
             }
 
-            logger?.trackEvent(event: Event.cachesCleared(key: configuration.managerKey))
+            logger?.trackEvent(event: Event.cachesCleared(key: managerKey))
         }
     }
 
@@ -169,14 +169,14 @@ public final class CollectionSyncEngine<T: DMProtocol> {
         }
 
         // Fetch from remote
-        logger?.trackEvent(event: Event.getCollectionStart(key: configuration.managerKey))
+        logger?.trackEvent(event: Event.getCollectionStart(key: managerKey))
 
         do {
             let collection = try await remote.getCollection()
-            logger?.trackEvent(event: Event.getCollectionSuccess(key: configuration.managerKey, count: collection.count))
+            logger?.trackEvent(event: Event.getCollectionSuccess(key: managerKey, count: collection.count))
             return collection
         } catch {
-            logger?.trackEvent(event: Event.getCollectionFail(key: configuration.managerKey, error: error))
+            logger?.trackEvent(event: Event.getCollectionFail(key: managerKey, error: error))
             throw error
         }
     }
@@ -209,14 +209,14 @@ public final class CollectionSyncEngine<T: DMProtocol> {
         }
 
         // Fetch from remote
-        logger?.trackEvent(event: Event.getDocumentStart(key: configuration.managerKey, documentId: id))
+        logger?.trackEvent(event: Event.getDocumentStart(key: managerKey, documentId: id))
 
         do {
             let document = try await remote.getDocument(id: id)
-            logger?.trackEvent(event: Event.getDocumentSuccess(key: configuration.managerKey, documentId: id))
+            logger?.trackEvent(event: Event.getDocumentSuccess(key: managerKey, documentId: id))
             return document
         } catch {
-            logger?.trackEvent(event: Event.getDocumentFail(key: configuration.managerKey, documentId: id, error: error))
+            logger?.trackEvent(event: Event.getDocumentFail(key: managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -231,7 +231,7 @@ public final class CollectionSyncEngine<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.streamDocumentStart(key: configuration.managerKey, documentId: id))
+        logger?.trackEvent(event: Event.streamDocumentStart(key: managerKey, documentId: id))
         return remote.streamDocument(id: id)
     }
 
@@ -267,14 +267,14 @@ public final class CollectionSyncEngine<T: DMProtocol> {
         let query = buildQuery(QueryBuilder())
         let filterCount = query.getFilters().count
 
-        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: configuration.managerKey, filterCount: filterCount))
+        logger?.trackEvent(event: Event.getDocumentsQueryStart(key: managerKey, filterCount: filterCount))
 
         do {
             let documents = try await remote.getDocuments(query: query)
-            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: configuration.managerKey, count: documents.count, filterCount: filterCount))
+            logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: managerKey, count: documents.count, filterCount: filterCount))
             return documents
         } catch {
-            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: configuration.managerKey, filterCount: filterCount, error: error))
+            logger?.trackEvent(event: Event.getDocumentsQueryFail(key: managerKey, filterCount: filterCount, error: error))
             throw error
         }
     }
@@ -291,18 +291,18 @@ public final class CollectionSyncEngine<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
+        logger?.trackEvent(event: Event.saveStart(key: managerKey, documentId: document.id))
 
         do {
             try await remote.saveDocument(document)
-            logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
+            logger?.trackEvent(event: Event.saveSuccess(key: managerKey, documentId: document.id))
 
             // Clear pending writes for this document since save succeeded
             if enableLocalPersistence && !pendingWrites.isEmpty {
                 clearPendingWrites(forDocumentId: document.id)
             }
         } catch {
-            logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
+            logger?.trackEvent(event: Event.saveFail(key: managerKey, documentId: document.id, error: error))
             throw error
         }
     }
@@ -319,18 +319,18 @@ public final class CollectionSyncEngine<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: id))
+        logger?.trackEvent(event: Event.updateStart(key: managerKey, documentId: id))
 
         do {
             try await remote.updateDocument(id: id, data: data)
-            logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: id))
+            logger?.trackEvent(event: Event.updateSuccess(key: managerKey, documentId: id))
 
             // Clear pending writes for this document since update succeeded
             if enableLocalPersistence && !pendingWrites.isEmpty {
                 clearPendingWrites(forDocumentId: id)
             }
         } catch {
-            logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: id, error: error))
+            logger?.trackEvent(event: Event.updateFail(key: managerKey, documentId: id, error: error))
 
             // Add to pending writes if enabled (include document ID)
             if enableLocalPersistence {
@@ -351,13 +351,13 @@ public final class CollectionSyncEngine<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: id))
+        logger?.trackEvent(event: Event.deleteStart(key: managerKey, documentId: id))
 
         do {
             try await remote.deleteDocument(id: id)
-            logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: id))
+            logger?.trackEvent(event: Event.deleteSuccess(key: managerKey, documentId: id))
         } catch {
-            logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: id, error: error))
+            logger?.trackEvent(event: Event.deleteFail(key: managerKey, documentId: id, error: error))
             throw error
         }
     }
@@ -368,29 +368,29 @@ public final class CollectionSyncEngine<T: DMProtocol> {
         currentCollection = collection
 
         Task {
-            try? await local?.saveCollection(managerKey: configuration.managerKey, collection)
+            try? await local?.saveCollection(managerKey: managerKey, collection)
         }
-        logger?.trackEvent(event: Event.collectionUpdated(key: configuration.managerKey, count: collection.count))
+        logger?.trackEvent(event: Event.collectionUpdated(key: managerKey, count: collection.count))
     }
 
     // MARK: - Private: Bulk Load
 
     private func bulkLoadCollection() async {
-        logger?.trackEvent(event: Event.bulkLoadStart(key: configuration.managerKey))
+        logger?.trackEvent(event: Event.bulkLoadStart(key: managerKey))
 
         do {
             let collection = try await remote.getCollection()
             handleCollectionUpdate(collection)
-            logger?.trackEvent(event: Event.bulkLoadSuccess(key: configuration.managerKey, count: collection.count))
+            logger?.trackEvent(event: Event.bulkLoadSuccess(key: managerKey, count: collection.count))
         } catch {
-            logger?.trackEvent(event: Event.bulkLoadFail(key: configuration.managerKey, error: error))
+            logger?.trackEvent(event: Event.bulkLoadFail(key: managerKey, error: error))
         }
     }
 
     // MARK: - Private: Listener
 
     private func startListener() {
-        logger?.trackEvent(event: Event.listenerStart(key: configuration.managerKey))
+        logger?.trackEvent(event: Event.listenerStart(key: managerKey))
         listenerFailedToAttach = false
 
         stopListener()
@@ -416,7 +416,7 @@ public final class CollectionSyncEngine<T: DMProtocol> {
 
                 // Log success only on first update (listener connected successfully)
                 if isFirstUpdate {
-                    logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, count: currentCollection.count))
+                    logger?.trackEvent(event: Event.listenerSuccess(key: managerKey, count: currentCollection.count))
                     isFirstUpdate = false
                 }
 
@@ -429,18 +429,18 @@ public final class CollectionSyncEngine<T: DMProtocol> {
 
                 // Save to local persistence
                 Task {
-                    try? await local?.saveCollection(managerKey: configuration.managerKey, currentCollection)
+                    try? await local?.saveCollection(managerKey: managerKey, currentCollection)
                 }
             }
         } catch {
-            logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
+            logger?.trackEvent(event: Event.listenerFail(key: managerKey, error: error))
             self.listenerFailedToAttach = true
 
             // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
             self.listenerRetryCount += 1
             let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
 
-            logger?.trackEvent(event: Event.listenerRetrying(key: configuration.managerKey, retryCount: self.listenerRetryCount, delaySeconds: delay))
+            logger?.trackEvent(event: Event.listenerRetrying(key: managerKey, retryCount: self.listenerRetryCount, delaySeconds: delay))
 
             // Schedule retry with exponential backoff
             self.listenerRetryTask?.cancel()
@@ -461,11 +461,11 @@ public final class CollectionSyncEngine<T: DMProtocol> {
 
                 // Save to local persistence
                 Task {
-                    try? await local?.saveCollection(managerKey: configuration.managerKey, currentCollection)
+                    try? await local?.saveCollection(managerKey: managerKey, currentCollection)
                 }
             }
         } catch {
-            logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, error: error))
+            logger?.trackEvent(event: Event.listenerFail(key: managerKey, error: error))
             self.listenerFailedToAttach = true
         }
     }
@@ -494,8 +494,8 @@ public final class CollectionSyncEngine<T: DMProtocol> {
             pendingWrites.append(newWrite)
         }
 
-        try? local?.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
-        logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
+        logger?.trackEvent(event: Event.pendingWriteAdded(key: managerKey, count: pendingWrites.count))
     }
 
     private func clearPendingWrites(forDocumentId documentId: String) {
@@ -503,15 +503,15 @@ public final class CollectionSyncEngine<T: DMProtocol> {
         pendingWrites.removeAll { $0.documentId == documentId }
 
         if originalCount != pendingWrites.count {
-            try? local?.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
-            logger?.trackEvent(event: Event.pendingWritesCleared(key: configuration.managerKey, documentId: documentId, remainingCount: pendingWrites.count))
+            try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
+            logger?.trackEvent(event: Event.pendingWritesCleared(key: managerKey, documentId: documentId, remainingCount: pendingWrites.count))
         }
     }
 
     private func syncPendingWrites() async {
         guard !pendingWrites.isEmpty else { return }
 
-        logger?.trackEvent(event: Event.syncPendingWritesStart(key: configuration.managerKey, count: pendingWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesStart(key: managerKey, count: pendingWrites.count))
 
         var successCount = 0
         var failedWrites: [PendingWrite] = []
@@ -533,9 +533,9 @@ public final class CollectionSyncEngine<T: DMProtocol> {
 
         // Update pending writes with only failed ones
         pendingWrites = failedWrites
-        try? local?.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
 
-        logger?.trackEvent(event: Event.syncPendingWritesComplete(key: configuration.managerKey, synced: successCount, failed: failedWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesComplete(key: managerKey, synced: successCount, failed: failedWrites.count))
     }
 
     // MARK: - Errors
