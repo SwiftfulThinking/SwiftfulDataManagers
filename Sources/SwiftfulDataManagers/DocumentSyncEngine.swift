@@ -45,7 +45,7 @@ public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
     public private(set) var currentDocument: T?
 
     /// The logger instance, accessible for domain-specific logging in consuming code.
-    public let logger: (any DataLogger)?
+    public let logger: (any DataSyncLogger)?
 
     // MARK: - Internal Properties
 
@@ -75,7 +75,7 @@ public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
         remote: any RemoteDocumentService<T>,
         managerKey: String,
         enableLocalPersistence: Bool = true,
-        logger: (any DataLogger)? = nil
+        logger: (any DataSyncLogger)? = nil
     ) {
         self.remote = remote
         self.managerKey = managerKey
@@ -454,7 +454,7 @@ public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
 
     // MARK: - Events
 
-    enum Event: DataLogEvent {
+    enum Event: DataSyncLogEvent {
         case getDocumentStart(key: String, documentId: String)
         case getDocumentSuccess(key: String, documentId: String)
         case getDocumentFail(key: String, documentId: String, error: Error)

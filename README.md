@@ -479,7 +479,7 @@ MockLocalCollectionPersistence<T>(collection: T.mocks)
 <summary> Details (Click to expand) </summary>
 <br>
 
-All engines support optional analytics via the `DataLogger` protocol.
+All engines support optional analytics via the `DataSyncLogger` protocol.
 
 ### Tracked Events
 

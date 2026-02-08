@@ -47,7 +47,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     public private(set) var currentCollection: [T] = []
 
     /// The logger instance, accessible for domain-specific logging in consuming code.
-    public let logger: (any DataLogger)?
+    public let logger: (any DataSyncLogger)?
 
     // MARK: - Internal Properties
 
@@ -77,7 +77,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         remote: any RemoteCollectionService<T>,
         managerKey: String,
         enableLocalPersistence: Bool = true,
-        logger: (any DataLogger)? = nil
+        logger: (any DataSyncLogger)? = nil
     ) {
         self.remote = remote
         self.managerKey = managerKey
@@ -553,7 +553,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
 
     // MARK: - Events
 
-    enum Event: DataLogEvent {
+    enum Event: DataSyncLogEvent {
         case getCollectionStart(key: String)
         case getCollectionSuccess(key: String, count: Int)
         case getCollectionFail(key: String, error: Error)
