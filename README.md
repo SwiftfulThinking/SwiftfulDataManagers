@@ -1,48 +1,11 @@
-### 🚀 Learn how to build and use this package: https://www.swiftful-thinking.com/offers/REyNLwwH
+# SwiftfulDataManagers
 
-# Data Managers for Swift 6 📊
+Real-time data sync engines for Swift. Manages documents and collections with optional local persistence, pending writes, and streaming updates. Built for composition — not subclassing.
 
-Reusable data synchronization managers for Swift applications, built for Swift 6. Includes `@Observable` support.
-
-![Platform: iOS/macOS](https://img.shields.io/badge/platform-iOS%20%7C%20macOS-blue)
-
-Pre-built dependencies*:
+Pre-built remote services:
 
 - Mock: Included
 - Firebase: https://github.com/SwiftfulThinking/SwiftfulDataManagersFirebase
-
-\* Created another? Send the url in [issues](https://github.com/SwiftfulThinking/SwiftfulDataManagers/issues)! 🥳
-
-## Features
-
-- ✅ **Document Management**: Single document with real-time sync or async operations
-- ✅ **Collection Management**: Document collections with streaming updates
-- ✅ **Offline Support**: Pending writes queue for failed operations
-- ✅ **Local Persistence**: FileManager and SwiftData backing
-
-## Quick Examples
-
-```swift
-// Document Manager - Real-time sync
-Task {
-    try await documentManager.logIn("user_123")
-    try await documentManager.updateDocument(data: ["name": "John"])
-    print(documentManager.currentDocument) // Real-time updated document
-}
-
-// Collection Manager - Streaming updates
-Task {
-    await collectionManager.logIn()
-    try await collectionManager.saveDocument(product)
-    print(collectionManager.currentCollection) // Auto-updated collection
-}
-
-// Async managers - No local persistence
-Task {
-    let user = try await asyncManager.getDocument(id: "user_123")
-    try await asyncManager.updateDocument(id: "user_123", data: ["age": 30])
-}
-```
 
 ## Setup
 
@@ -50,292 +13,24 @@ Task {
 <summary> Details (Click to expand) </summary>
 <br>
 
-#### Create instances of managers:
+Add SwiftfulDataManagers to your project.
 
-```swift
-// Document Manager with real-time sync
-let documentManager = DocumentManagerSync(
-    services: any DMDocumentServices,
-    configuration: DataManagerSyncConfiguration,
-    logger: DataLogger?
-)
-
-// Collection Manager with real-time sync
-let collectionManager = CollectionManagerSync(
-    services: any DMCollectionServices,
-    configuration: DataManagerSyncConfiguration,
-    logger: DataLogger?
-)
-
-// Document Manager async (no local persistence)
-let asyncDocumentManager = DocumentManagerAsync(
-    service: any RemoteDocumentService,
-    configuration: DataManagerAsyncConfiguration,
-    logger: DataLogger?
-)
-
-// Collection Manager async (no local persistence)
-let asyncCollectionManager = CollectionManagerAsync(
-    service: any RemoteCollectionService,
-    configuration: DataManagerAsyncConfiguration,
-    logger: DataLogger?
-)
+```
+https://github.com/SwiftfulThinking/SwiftfulDataManagers.git
 ```
 
-#### Development vs Production:
+Import the package.
 
 ```swift
-#if DEBUG
-let documentManager = DocumentManagerSync(
-    services: MockDMDocumentServices(),
-    configuration: .mock(managerKey: "user")
-)
-#else
-let documentManager = DocumentManagerSync(
-    services: FirebaseDMDocumentServices(),
-    configuration: DataManagerSyncConfiguration(managerKey: "user")
-)
-#endif
+import SwiftfulDataManagers
 ```
 
-#### Optionally add to SwiftUI environment as @Observable
+Conform your models to `DMProtocol`:
 
 ```swift
-Text("Hello, world!")
-    .environment(documentManager)
-    .environment(collectionManager)
-```
-
-</details>
-
-## Inject dependencies
-
-<details>
-<summary> Details (Click to expand) </summary>
-<br>
-
-Each sync manager is initialized with a `Services` protocol that combines remote and local services. This is a public protocol you can use to create your own dependency.
-
-`Mock` implementations are included for SwiftUI previews and testing.
-
-```swift
-// Mock with blank data
-let services = MockDMDocumentServices<UserModel>()
-
-// Mock with custom data
-let user = UserModel(id: "123", name: "John")
-let services = MockDMDocumentServices(document: user)
-```
-
-Other services are not directly included, so that the developer can pick-and-choose which dependencies to add to the project.
-
-You can create your own services by conforming to the protocols:
-
-```swift
-public protocol DMDocumentServices {
-    associatedtype T: DMProtocol
-    var remote: any RemoteDocumentService<T> { get }
-    var local: any LocalDocumentPersistence<T> { get }
-}
-
-public protocol DMCollectionServices {
-    associatedtype T: DMProtocol
-    var remote: any RemoteCollectionService<T> { get }
-    var local: any LocalCollectionPersistence<T> { get }
-}
-```
-
-</details>
-
-## Document Management
-
-<details>
-<summary> Details (Click to expand) </summary>
-<br>
-
-### Configuration
-
-```swift
-let config = DataManagerSyncConfiguration(
-    managerKey: "user",              // Unique identifier for this manager
-    enablePendingWrites: true        // Queue failed operations for retry
-)
-
-// Async configuration (no pending writes)
-let asyncConfig = DataManagerAsyncConfiguration(
-    managerKey: "user"
-)
-```
-
-**⚠️ Important: Key Sanitization**
-
-All configuration keys (`managerKey`) are validated and must:
-- Contain only alphanumeric characters, underscores, and hyphens
-- Not contain periods (`.`), slashes (`/`), or special characters
-- Be 1-512 characters long
-- Examples: `"user"`, `"user_profile"`, `"user-settings"` ✅
-- Invalid: `"user.profile"`, `"user/settings"` ❌
-
-### Log In / Log Out (Sync Managers)
-
-```swift
-// Log in (starts remote listener for real-time updates)
-try await documentManager.logIn("document_123")
-
-// Log out (stops listeners and clears local data)
-documentManager.logOut()
-```
-
-### CRUD Operations
-
-```swift
-// Get document
-let document = documentManager.getDocument()              // Sync - from cache
-let document = try await documentManager.getDocumentAsync() // Async - from remote
-
-// Save document
-try await documentManager.saveDocument(document)
-
-// Update document with partial data
-try await documentManager.updateDocument(data: [
-    "name": "John Doe",
-    "age": 30,
-    "verified": true
-])
-
-// Delete document
-try await documentManager.deleteDocument()
-```
-
-### Access Current Document (Sync Managers)
-
-```swift
-// Observable property for SwiftUI
-let document = documentManager.currentDocument
-
-// Get or throw if not available
-let document = try documentManager.getDocumentOrThrow()
-
-// Get document ID
-let id = try documentManager.getDocumentId()
-```
-
-### Pending Writes (Sync Managers Only)
-
-Failed operations are automatically queued when `enablePendingWrites = true`:
-
-```swift
-// Operations that fail will be added to pending writes queue
-try await documentManager.updateDocument(data: ["status": "active"])
-
-// Pending writes sync automatically on next successful connection
-// Manual sync happens during logIn()
-```
-
-</details>
-
-## Collection Management
-
-<details>
-<summary> Details (Click to expand) </summary>
-<br>
-
-### Configuration
-
-Same configuration as Document Management:
-
-```swift
-let config = DataManagerSyncConfiguration(
-    managerKey: "products",
-    enablePendingWrites: true
-)
-```
-
-### Log In / Log Out (Sync Managers)
-
-```swift
-// Log in (bulk loads collection then streams updates)
-await collectionManager.logIn()
-
-// Log out (stops listeners and clears local data)
-await collectionManager.logOut()
-```
-
-### Collection Operations
-
-```swift
-// Get collection
-let items = collectionManager.getCollection()              // Sync - from cache
-let items = try await collectionManager.getCollectionAsync() // Async - from remote
-
-// Get single document
-let item = collectionManager.getDocument(id: "item_123")
-let item = try await collectionManager.getDocumentAsync(id: "item_123")
-
-// Save document to collection
-try await collectionManager.saveDocument(document)
-
-// Update document in collection
-try await collectionManager.updateDocument(id: "item_123", data: ["price": 99.99])
-
-// Delete document from collection
-try await collectionManager.deleteDocument(id: "item_123")
-```
-
-### Query Builder
-
-```swift
-// Build complex queries
-let query = QueryBuilder()
-    .whereField("category", isEqualTo: "electronics")
-    .whereField("price", isLessThan: 1000)
-    .orderBy(field: "price", descending: true)
-    .limit(10)
-
-let results = try await collectionManager.getDocuments(query: query)
-```
-
-### Access Current Collection (Sync Managers)
-
-```swift
-// Observable property for SwiftUI
-let collection = collectionManager.currentCollection
-
-// Get collection synchronously
-let collection = collectionManager.getCollection()
-
-// Check if collection contains document
-let hasDocument = collectionManager.containsDocument(id: "item_123")
-```
-
-### Streaming Pattern (Sync Managers)
-
-CollectionManagerSync follows the "hybrid sync" pattern:
-1. Bulk loads all documents on `logIn()`
-2. Streams individual document updates/deletions
-3. Maintains local cache for offline access
-
-</details>
-
-## DMProtocol Requirements
-
-<details>
-<summary> Details (Click to expand) </summary>
-<br>
-
-All managed types must conform to `DMProtocol`:
-
-```swift
-public protocol DMProtocol: Codable, Sendable, StringIdentifiable {
-    var eventParameters: [String: Any] { get }
-    static var mocks: [Self] { get }
-}
-
-// Example implementation
 struct UserModel: DMProtocol {
-    let id: String  // Required by StringIdentifiable
+    let id: String
     var name: String
-    var email: String
     var age: Int
 
     var eventParameters: [String: Any] {
@@ -344,11 +39,339 @@ struct UserModel: DMProtocol {
 
     static var mocks: [Self] {
         [
-            UserModel(id: "1", name: "John", email: "john@example.com", age: 30),
-            UserModel(id: "2", name: "Jane", email: "jane@example.com", age: 25)
+            UserModel(id: "1", name: "John", age: 30),
+            UserModel(id: "2", name: "Jane", age: 25)
         ]
     }
 }
+```
+
+</details>
+
+## Document vs Collection
+
+Use `DocumentSyncEngine` when managing **a single document** (e.g., current user profile, app settings, a user's subscription). The document is identified by a specific ID.
+
+Use `CollectionSyncEngine` when managing **a list of documents** (e.g., products, messages, watchlist items). The collection bulk loads all documents and streams individual changes.
+
+```swift
+// Single document — one user profile
+let userEngine = DocumentSyncEngine<UserModel>(...)
+
+// Collection of documents — list of products
+let productsEngine = CollectionSyncEngine<Product>(...)
+```
+
+## DocumentSyncEngine
+
+<details>
+<summary> Details (Click to expand) </summary>
+<br>
+
+### Create
+
+```swift
+let engine = DocumentSyncEngine<UserModel>(
+    remote: FirebaseRemoteDocumentService(collectionPath: { "users" }),
+    configuration: DataManagerSyncConfiguration(managerKey: "user"),
+    enableLocalPersistence: true,
+    logger: logManager
+)
+```
+
+### Start / Stop Listening
+
+```swift
+// Start real-time sync for a document
+try await engine.startListening(documentId: "user_123")
+
+// Stop listening and clear all cached data
+engine.stopListening()
+
+// Stop listening but keep cached data in memory and on disk
+engine.stopListening(clearCaches: false)
+```
+
+### Read
+
+```swift
+// Sync — from cache (returns nil if not cached)
+let user = engine.currentDocument
+let user = engine.getDocument()
+let user = try engine.getDocumentOrThrow()
+
+// Async — returns cached if available, otherwise fetches from remote
+let user = try await engine.getDocumentAsync()
+
+// Async — always fetches from remote, ignoring cache
+let user = try await engine.getDocumentAsync(behavior: .alwaysFetch)
+
+// Async — fetch a specific document by ID (no listener needed)
+let user = try await engine.getDocumentAsync(id: "user_456")
+```
+
+### Write
+
+```swift
+// Save a complete document
+try await engine.saveDocument(user)
+
+// Update specific fields (uses stored documentId from startListening)
+try await engine.updateDocument(data: [
+    "name": "John",
+    "age": 30
+])
+
+// Update with explicit ID (no listener needed)
+try await engine.updateDocument(id: "user_123", data: ["name": "John"])
+
+// Delete
+try await engine.deleteDocument()
+try await engine.deleteDocument(id: "user_123")
+```
+
+### Observable
+
+`DocumentSyncEngine` is `@Observable`. SwiftUI views reading `currentDocument` auto-update:
+
+```swift
+struct ProfileView: View {
+    let engine: DocumentSyncEngine<UserModel>
+
+    var body: some View {
+        if let user = engine.currentDocument {
+            Text(user.name)
+        }
+    }
+}
+```
+
+</details>
+
+## CollectionSyncEngine
+
+<details>
+<summary> Details (Click to expand) </summary>
+<br>
+
+### Create
+
+```swift
+let engine = CollectionSyncEngine<Product>(
+    remote: FirebaseRemoteCollectionService(collectionPath: { "products" }),
+    configuration: DataManagerSyncConfiguration(managerKey: "products"),
+    enableLocalPersistence: true,
+    logger: logManager
+)
+```
+
+### Start / Stop Listening
+
+`startListening()` performs a hybrid sync: bulk loads all documents, then streams individual changes (adds, updates, deletions).
+
+```swift
+// Start real-time sync
+await engine.startListening()
+
+// Stop listening and clear all cached data
+engine.stopListening()
+
+// Stop listening but keep cached data
+engine.stopListening(clearCaches: false)
+```
+
+### Read
+
+```swift
+// Sync — from cache
+let products = engine.currentCollection
+let products = engine.getCollection()
+let product = engine.getDocument(id: "product_123")
+
+// Async — cached or fetch
+let products = try await engine.getCollectionAsync()
+let product = try await engine.getDocumentAsync(id: "product_123")
+
+// Async — always fetch from remote
+let products = try await engine.getCollectionAsync(behavior: .alwaysFetch)
+let product = try await engine.getDocumentAsync(id: "product_123", behavior: .alwaysFetch)
+
+// Filter from cache
+let cheap = engine.getDocuments(where: { $0.price < 10 })
+
+// Filter async (cached or fetch, then filter)
+let cheap = try await engine.getDocumentsAsync(where: { $0.price < 10 })
+
+// Query with QueryBuilder (always fetches from remote)
+let results = try await engine.getDocumentsAsync(buildQuery: { query in
+    query
+        .where("category", isEqualTo: "electronics")
+        .where("price", isLessThan: 1000)
+})
+
+// Stream a single document
+let stream = engine.streamDocument(id: "product_123")
+for try await product in stream {
+    // Real-time updates
+}
+```
+
+### Write
+
+```swift
+// Save a document to the collection
+try await engine.saveDocument(product)
+
+// Update specific fields on a document
+try await engine.updateDocument(id: "product_123", data: ["price": 29.99])
+
+// Delete a document
+try await engine.deleteDocument(id: "product_123")
+```
+
+### Observable
+
+```swift
+struct ProductListView: View {
+    let engine: CollectionSyncEngine<Product>
+
+    var body: some View {
+        ForEach(engine.currentCollection) { product in
+            Text(product.name)
+        }
+    }
+}
+```
+
+</details>
+
+## Composition Pattern
+
+<details>
+<summary> Details (Click to expand) </summary>
+<br>
+
+Engines are designed for **composition** — wrap them in your own manager classes. This lets you add domain logic, combine multiple engines, and expose only the API your app needs.
+
+### Single Engine
+
+```swift
+@MainActor
+@Observable
+class UserManager {
+    private let engine: DocumentSyncEngine<UserModel>
+
+    var currentUser: UserModel? { engine.currentDocument }
+
+    init(
+        remote: any RemoteDocumentService<UserModel>,
+        configuration: DataManagerSyncConfiguration,
+        enableLocalPersistence: Bool = true,
+        logger: (any DataLogger)? = nil
+    ) {
+        self.engine = DocumentSyncEngine(
+            remote: remote,
+            configuration: configuration,
+            enableLocalPersistence: enableLocalPersistence,
+            logger: logger
+        )
+    }
+
+    func signIn(userId: String) async throws {
+        try await engine.startListening(documentId: userId)
+    }
+
+    func signOut() {
+        engine.stopListening()
+    }
+
+    func updateName(_ name: String) async throws {
+        try await engine.updateDocument(data: ["name": name])
+    }
+}
+```
+
+### Multiple Engines in One Manager
+
+A single manager can own multiple engines, each pointing to a different remote collection and persisting under a different local key:
+
+```swift
+@MainActor
+@Observable
+class ContentManager {
+    private let moviesEngine: CollectionSyncEngine<Movie>
+    private let tvShowsEngine: CollectionSyncEngine<TVShow>
+    private let watchlistEngine: CollectionSyncEngine<WatchlistItem>
+
+    var movies: [Movie] { moviesEngine.currentCollection }
+    var tvShows: [TVShow] { tvShowsEngine.currentCollection }
+    var watchlist: [WatchlistItem] { watchlistEngine.currentCollection }
+
+    init(
+        moviesRemote: any RemoteCollectionService<Movie>,
+        tvShowsRemote: any RemoteCollectionService<TVShow>,
+        watchlistRemote: any RemoteCollectionService<WatchlistItem>,
+        logger: (any DataLogger)? = nil
+    ) {
+        self.moviesEngine = CollectionSyncEngine(
+            remote: moviesRemote,
+            configuration: DataManagerSyncConfiguration(managerKey: "movies"),
+            enableLocalPersistence: true,
+            logger: logger
+        )
+        self.tvShowsEngine = CollectionSyncEngine(
+            remote: tvShowsRemote,
+            configuration: DataManagerSyncConfiguration(managerKey: "tvShows"),
+            enableLocalPersistence: false,
+            logger: logger
+        )
+        self.watchlistEngine = CollectionSyncEngine(
+            remote: watchlistRemote,
+            configuration: DataManagerSyncConfiguration(managerKey: "watchlist"),
+            enableLocalPersistence: true,
+            logger: logger
+        )
+    }
+
+    func startListening() async {
+        await moviesEngine.startListening()
+        await tvShowsEngine.startListening()
+        await watchlistEngine.startListening()
+    }
+
+    func stopListening() {
+        moviesEngine.stopListening()
+        tvShowsEngine.stopListening()
+        watchlistEngine.stopListening()
+    }
+}
+```
+
+Each engine is fully independent — its own remote source, its own local persistence key, its own `enableLocalPersistence` setting.
+
+### Dynamic Collection Paths
+
+For user-scoped collections where the path changes (e.g., on account switch), use a closure for the collection path:
+
+```swift
+let engine = CollectionSyncEngine<WatchlistItem>(
+    remote: FirebaseRemoteCollectionService(
+        collectionPath: { [weak authManager] in
+            guard let uid = authManager?.currentUserId else { return nil }
+            return "users/\(uid)/watchlist"
+        }
+    ),
+    configuration: DataManagerSyncConfiguration(managerKey: "watchlist")
+)
+
+// On sign-in: closure resolves to new user's path
+await engine.startListening()
+
+// On sign-out: clears old data, stops listener
+engine.stopListening()
+
+// On new sign-in: closure now returns new user's path
+await engine.startListening()
 ```
 
 </details>
@@ -359,84 +382,129 @@ struct UserModel: DMProtocol {
 <summary> Details (Click to expand) </summary>
 <br>
 
-### FileManager Persistence (Included)
+The `enableLocalPersistence` parameter controls all local behavior: caching, pending writes, and offline recovery.
 
-Simple JSON-based persistence using FileManager:
+### How It Works
 
-```swift
-let persistence = FileManagerDocumentPersistence<UserModel>()
-```
+| | `enableLocalPersistence: true` (default) | `enableLocalPersistence: false` |
+|---|---|---|
+| **Cached data on launch** | Loads from disk immediately | Empty until first fetch |
+| **Data saved to disk** | After every update from listener | Never |
+| **Pending writes** | Failed writes queued and retried | Failed writes lost |
+| **Offline recovery** | Resumes from local cache | Starts fresh |
 
-### SwiftData Persistence (Included for Collections)
+### DocumentSyncEngine — FileManager
 
-SwiftData-backed persistence for collections:
+Single documents are persisted as JSON files via `FileManagerDocumentPersistence`. Stores three things per `managerKey`:
+- The document itself (JSON)
+- The document ID (so it survives app restart)
+- Pending writes queue (JSON array)
 
-```swift
-let persistence = SwiftDataCollectionPersistence<ProductModel>(managerKey: "products")
-```
+### CollectionSyncEngine — SwiftData
 
-### Custom Persistence
+Collections are persisted via `SwiftDataCollectionPersistence` using a `ModelContainer`. Stores:
+- All documents in the collection (via `DocumentEntity` model)
+- Pending writes queue (JSON file via FileManager)
 
-Implement the protocols for custom persistence:
+Collection saves run on a background thread for performance.
 
-```swift
-public protocol LocalDocumentPersistence<T>: Sendable {
-    func saveDocument(managerKey: String, _ document: T?) throws
-    func getDocument(managerKey: String) throws -> T?
-    func savePendingWrites(managerKey: String, _ writes: [PendingWrite]) throws
-    func getPendingWrites(managerKey: String) throws -> [PendingWrite]
-    // ...
-}
-```
+### Pending Writes
 
-**Note**: Following SwiftfulGamification patterns, persistence methods accept `managerKey` as a parameter rather than storing it.
+When `enableLocalPersistence` is `true` and a write operation fails (e.g., network offline):
+
+1. The failed write is saved to a local queue
+2. For documents: writes merge into a single pending write (since it's one document)
+3. For collections: writes are tracked per document ID (merged per document)
+4. On next `startListening()`, pending writes sync automatically before attaching the listener
+5. Successfully synced writes are removed from the queue; failed ones remain for next attempt
+
+### Listener Retry
+
+If the real-time listener fails to connect, engines retry with exponential backoff:
+
+- Retry delays: 2s, 4s, 8s, 16s, 32s, 60s (max)
+- Resets on successful connection
+- Also retries on next read/write operation if listener is down
 
 </details>
 
-## Analytics Integration
+## Mocks
 
 <details>
 <summary> Details (Click to expand) </summary>
 <br>
 
-All managers support optional analytics logging:
+Mock implementations are included for SwiftUI previews and testing.
 
 ```swift
-// Create logger (see SwiftfulLogging package)
-let logger = LogManager(services: [
-    FirebaseAnalyticsService(),
-    MixpanelService()
-])
+// Production
+let engine = DocumentSyncEngine<UserModel>(
+    remote: FirebaseRemoteDocumentService(collectionPath: { "users" }),
+    configuration: DataManagerSyncConfiguration(managerKey: "user"),
+    logger: logManager
+)
 
-// Inject into managers
-let documentManager = DocumentManagerSync(
-    services: services,
-    configuration: config,
-    logger: logger
+// Mock — no persistence, no real remote
+let engine = DocumentSyncEngine<UserModel>(
+    remote: MockRemoteDocumentService(document: .mock),
+    configuration: DataManagerSyncConfiguration(managerKey: "test"),
+    enableLocalPersistence: false
+)
+
+// Mock collection
+let engine = CollectionSyncEngine<Product>(
+    remote: MockRemoteCollectionService(collection: Product.mocks),
+    configuration: DataManagerSyncConfiguration(managerKey: "test"),
+    enableLocalPersistence: false
 )
 ```
 
+### Available Mocks
+
+```swift
+// Remote services
+MockRemoteDocumentService<T>(document: T.mock)
+MockRemoteCollectionService<T>(collection: T.mocks)
+
+// Local persistence (for custom implementations)
+MockLocalDocumentPersistence<T>(document: T.mock)
+MockLocalCollectionPersistence<T>(collection: T.mocks)
+
+// Configuration
+DataManagerSyncConfiguration.mock()
+DataManagerSyncConfiguration.mock(managerKey: "custom")
+```
+
+</details>
+
+## Analytics
+
+<details>
+<summary> Details (Click to expand) </summary>
+<br>
+
+All engines support optional analytics via the `DataLogger` protocol.
+
 ### Tracked Events
 
-**DocumentManagerSync/CollectionManagerSync**:
-- `{key}_listener_start/success/fail/retrying`
-- `{key}_save_start/success/fail`
-- `{key}_update_start/success/fail`
-- `{key}_delete_start/success/fail`
-- `{key}_documentUpdated/documentDeleted`
-- `{key}_pendingWriteAdded/pendingWritesCleared`
-- `{key}_syncPendingWrites_start/complete`
-- `{key}_bulkLoad_start/success/fail` (CollectionManagerSync only)
+Events are prefixed with the `managerKey`:
 
-**DocumentManagerAsync/CollectionManagerAsync**:
-- `{key}_get_start/success/fail`
-- `{key}_save_start/success/fail`
-- `{key}_update_start/success/fail`
-- `{key}_delete_start/success/fail`
+```
+{key}_listener_start / success / fail / retrying / stopped
+{key}_save_start / success / fail
+{key}_update_start / success / fail
+{key}_delete_start / success / fail
+{key}_getDocument_start / success / fail
+{key}_documentUpdated / documentDeleted
+{key}_pendingWriteAdded / pendingWritesCleared
+{key}_syncPendingWrites_start / complete
+{key}_cachesCleared
+{key}_bulkLoad_start / success / fail          (CollectionSyncEngine only)
+{key}_getCollection_start / success / fail      (CollectionSyncEngine only)
+{key}_getDocumentsQuery_start / success / fail  (CollectionSyncEngine only)
+```
 
 ### Event Parameters
-
-All events include relevant parameters:
 
 ```swift
 "document_id": "user_123"
@@ -444,135 +512,21 @@ All events include relevant parameters:
 "pending_write_count": 3
 "retry_count": 2
 "delay_seconds": 4.0
+"count": 25           // collection/bulk load count
+"filter_count": 2     // query filter count
 ```
 
 </details>
 
-## Mock Factories
+## Claude Code
 
-<details>
-<summary> Details (Click to expand) </summary>
-<br>
+This package includes a `.claude/swiftful-data-managers-rules.md` with usage guidelines and integration advice for projects using [Claude Code](https://claude.ai/claude-code).
 
-All configurations and services include mock factory methods for testing:
+## Platform Support
 
-### Configurations
-
-```swift
-// Default mock configuration
-DataManagerSyncConfiguration.mock()
-
-// Mock without pending writes
-DataManagerSyncConfiguration.mockNoPendingWrites()
-
-// Async configuration mock
-DataManagerAsyncConfiguration.mock()
-```
-
-### Services
-
-```swift
-// Mock document services
-let services = MockDMDocumentServices(document: UserModel.mock)
-
-// Mock collection services
-let services = MockDMCollectionServices(collection: ProductModel.mocks)
-
-// Mock remote services
-let remote = MockRemoteDocumentService(document: UserModel.mock)
-let remote = MockRemoteCollectionService(collection: ProductModel.mocks)
-
-// Mock local persistence
-let local = MockLocalDocumentPersistence(document: UserModel.mock)
-let local = MockLocalCollectionPersistence(collection: ProductModel.mocks)
-```
-
-</details>
-
-## Architecture
-
-<details>
-<summary> Details (Click to expand) </summary>
-<br>
-
-SwiftfulDataManagers follows the **SwiftfulThinking Provider Pattern**:
-
-1. **Base Package** (this package):
-   - Zero external dependencies (except IdentifiableByString)
-   - Defines all protocols and models
-   - Includes Mock implementations
-   - All types are `Codable` and `Sendable`
-
-2. **Implementation Packages** (separate SPM):
-   - SwiftfulDataManagersFirebase: Firebase implementation
-   - Implements service protocols
-   - Handles provider-specific logic
-
-3. **Manager Classes**:
-   - `@MainActor` for UI thread safety
-   - `@Observable` for SwiftUI integration
-   - Dependency injection via protocols
-   - Optional logger for analytics
-   - Comprehensive event tracking
-
-### Key Features
-
-- **Swift 6 concurrency**: Full async/await support
-- **Thread safety**: `@MainActor` isolation, `Sendable` conformance
-- **SwiftUI ready**: `@Observable` support
-- **Offline first**: Local persistence with remote sync (Sync managers)
-- **Real-time sync**: AsyncStream-based listeners
-- **Type-safe**: Protocol-based architecture
-- **Testable**: Mock implementations included
-- **Listener retry**: Exponential backoff for failed connections
-
-### Manager Types
-
-```
-┌─────────────────────────┬────────────────────────┐
-│    Sync Managers        │    Async Managers      │
-├─────────────────────────┼────────────────────────┤
-│ ✓ Real-time listeners   │ ✗ No listeners         │
-│ ✓ Local persistence     │ ✗ No local cache       │
-│ ✓ Offline support       │ ✗ Online only          │
-│ ✓ Pending writes queue  │ ✗ No queue             │
-│ ✓ Observable properties │ ✗ Async methods only   │
-└─────────────────────────┴────────────────────────┘
-```
-
-</details>
-
-## Requirements
-
-- iOS 17.0+ / macOS 14.0+
+- **iOS 17.0+** / **macOS 14.0+**
 - Swift 6.0+
-- Xcode 16.0+
-
-## Installation
-
-### Swift Package Manager
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/SwiftfulThinking/SwiftfulDataManagers.git", branch: "main")
-]
-```
-
-## Contributing
-
-Community contributions are encouraged! Please ensure that your code adheres to the project's existing coding style and structure.
-
-- [Open an issue](https://github.com/SwiftfulThinking/SwiftfulDataManagers/issues) for issues with the existing codebase.
-- [Open a discussion](https://github.com/SwiftfulThinking/SwiftfulDataManagers/discussions) for new feature requests.
-- [Submit a pull request](https://github.com/SwiftfulThinking/SwiftfulDataManagers/pulls) when the feature is ready.
-
-## Related Packages
-
-- [SwiftfulDataManagersFirebase](https://github.com/SwiftfulThinking/SwiftfulDataManagersFirebase) - Firebase implementation
-- [SwiftfulGamification](https://github.com/SwiftfulThinking/SwiftfulGamification) - Reference implementation patterns
-- [SwiftfulLogging](https://github.com/SwiftfulThinking/SwiftfulLogging) - Analytics logging
-- [SwiftfulStarterProject](https://github.com/SwiftfulThinking/SwiftfulStarterProject) - Full integration example
 
 ## License
 
-MIT License. See LICENSE file for details.
+SwiftfulDataManagers is available under the MIT license.
