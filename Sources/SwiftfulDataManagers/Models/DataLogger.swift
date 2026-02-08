@@ -1,5 +1,5 @@
 //
-//  DataLogger.swift
+//  DataSyncLogger.swift
 //  SwiftfulDataManagers
 //
 //  Created by Nick Sarno on 1/17/25.
@@ -7,14 +7,14 @@
 
 import Foundation
 
-/// Protocol for logging data manager events.
+/// Protocol for logging data sync engine events.
 ///
 /// Implement this protocol to integrate with your analytics system.
 @MainActor
-public protocol DataLogger: Sendable {
+public protocol DataSyncLogger: Sendable {
     /// Track an event
     /// - Parameter event: The event to track
-    func trackEvent(event: DataLogEvent)
+    func trackEvent(event: DataSyncLogEvent)
 
     /// Add properties to all future events
     /// - Parameters:
@@ -24,7 +24,7 @@ public protocol DataLogger: Sendable {
 }
 
 /// Protocol defining an event that can be logged.
-public protocol DataLogEvent: Sendable {
+public protocol DataSyncLogEvent: Sendable {
     /// The name of the event
     var eventName: String { get }
 

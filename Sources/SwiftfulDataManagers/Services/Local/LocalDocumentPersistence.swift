@@ -14,7 +14,7 @@ import Foundation
 ///
 /// Example:
 /// ```swift
-/// struct FileManagerDocumentPersistence<T: DMProtocol>: LocalDocumentPersistence {
+/// struct FileManagerDocumentPersistence<T: DataSyncModelProtocol>: LocalDocumentPersistence {
 ///     func saveDocument(_ document: T?) throws {
 ///         // Save to FileManager
 ///     }
@@ -26,7 +26,7 @@ import Foundation
 /// ```
 @MainActor
 public protocol LocalDocumentPersistence<T>: Sendable {
-    associatedtype T: DMProtocol
+    associatedtype T: DataSyncModelProtocol
 
     /// Save a document to local storage
     /// - Parameters:

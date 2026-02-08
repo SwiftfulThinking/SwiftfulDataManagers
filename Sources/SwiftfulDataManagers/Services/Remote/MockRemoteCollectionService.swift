@@ -9,7 +9,7 @@ import Foundation
 
 /// Mock implementation of RemoteCollectionService for testing and previews.
 @MainActor
-public final class MockRemoteCollectionService<T: DMProtocol>: RemoteCollectionService, @unchecked Sendable {
+public final class MockRemoteCollectionService<T: DataSyncModelProtocol>: RemoteCollectionService, @unchecked Sendable {
 
     // MARK: - Properties
 

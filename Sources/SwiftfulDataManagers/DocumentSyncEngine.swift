@@ -1,50 +1,58 @@
 //
-//  DocumentManagerSync.swift
+//  DocumentSyncEngine.swift
 //  SwiftfulDataManagers
 //
-//  Created by Nick Sarno on 1/17/25.
+//  Created by Nick Sarno.
 //
 
 import Foundation
 import Observation
 
-/// Synchronous document manager with real-time listener and local persistence.
+/// Real-time document sync engine with optional local persistence.
 ///
-/// Manages a single document with streaming updates, FileManager caching, and pending writes queue.
+/// Manages a single document with streaming updates, optional FileManager caching,
+/// and pending writes queue. Designed for composition (not subclassing).
 ///
 /// Example:
 /// ```swift
-/// let manager = DocumentManagerSync<Product>(
-///     documentId: "product_123",
-///     remote: FirebaseDocumentService(),
-///     local: FileManagerDocumentPersistence(),
-///     configuration: DataManagerConfiguration(),
-///     logger: myLogger
+/// let engine = DocumentSyncEngine<UserModel>(
+///     remote: FirebaseRemoteDocumentService(collectionPath: { "users" }),
+///     managerKey: "user",
+///     logger: logManager
 /// )
 ///
-/// // Start listening
-/// await manager.startListening()
+/// // Start real-time sync
+/// try await engine.startListening(documentId: "user_123")
 ///
-/// // Access current document
-/// if let product = manager.currentDocument {
-///     print(product.name)
+/// // Access current document (Observable — SwiftUI auto-updates)
+/// if let user = engine.currentDocument {
+///     print(user.name)
 /// }
+///
+/// // Update fields
+/// try await engine.updateDocument(data: ["name": "John"])
+///
+/// // Stop listening
+/// engine.stopListening()
 /// ```
 @MainActor
 @Observable
-open class DocumentManagerSync<T: DMProtocol> {
+public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
 
     // MARK: - Public Properties
 
-    /// The current document (read-only for subclasses)
+    /// The current document. Observable — SwiftUI views reading this will auto-update.
     public private(set) var currentDocument: T?
+
+    /// The logger instance, accessible for domain-specific logging in consuming code.
+    public let logger: (any DataSyncLogger)?
 
     // MARK: - Internal Properties
 
     internal let remote: any RemoteDocumentService<T>
-    internal let local: any LocalDocumentPersistence<T>
-    internal let configuration: DataManagerSyncConfiguration
-    public let logger: (any DataLogger)?
+    internal let local: (any LocalDocumentPersistence<T>)?
+    internal let managerKey: String
+    internal let enableLocalPersistence: Bool
 
     // MARK: - Private Properties
 
@@ -57,50 +65,63 @@ open class DocumentManagerSync<T: DMProtocol> {
 
     // MARK: - Initialization
 
-    /// Initialize the DocumentManagerSync using services pattern
+    /// Initialize the DocumentSyncEngine.
     /// - Parameters:
-    ///   - services: Combined remote and local services
-    ///   - configuration: Manager configuration
-    ///   - logger: Optional logger for analytics
-    public init<S: DMDocumentServices>(
-        services: S,
-        configuration: DataManagerSyncConfiguration,
-        logger: (any DataLogger)? = nil
-    ) where S.T == T {
-        self.remote = services.remote
-        self.local = services.local
-        self.configuration = configuration
+    ///   - remote: The remote document service (e.g., FirebaseRemoteDocumentService)
+    ///   - managerKey: Unique key for local persistence paths and analytics event prefixes (e.g., "user", "settings")
+    ///   - enableLocalPersistence: Whether to persist the document locally via FileManager and enable pending writes. Default `true`.
+    ///   - logger: Optional logger for analytics events.
+    public init(
+        remote: any RemoteDocumentService<T>,
+        managerKey: String,
+        enableLocalPersistence: Bool = true,
+        logger: (any DataSyncLogger)? = nil
+    ) {
+        self.remote = remote
+        self.managerKey = managerKey
+        self.enableLocalPersistence = enableLocalPersistence
         self.logger = logger
 
-        // Load cached document and document ID from local storage
-        self.currentDocument = try? local.getDocument(managerKey: configuration.managerKey)
-        self.documentId = try? local.getDocumentId(managerKey: configuration.managerKey)
+        if enableLocalPersistence {
+            let persistence = FileManagerDocumentPersistence<T>()
+            self.local = persistence
 
-        // Load pending writes if enabled
-        if configuration.enablePendingWrites {
-            self.pendingWrites = (try? local.getPendingWrites(managerKey: configuration.managerKey)) ?? []
+            // Load cached document and document ID from local storage
+            self.currentDocument = try? persistence.getDocument(managerKey: managerKey)
+            self.documentId = try? persistence.getDocumentId(managerKey: managerKey)
+
+            // Load pending writes
+            self.pendingWrites = (try? persistence.getPendingWrites(managerKey: managerKey)) ?? []
+        } else {
+            self.local = nil
         }
     }
 
-    // MARK: - Public Methods
+    // MARK: - Lifecycle
 
-    /// Log in with a document ID and start listening for updates
-    /// - Parameter documentId: The document ID to manage
-    /// - Throws: Error if no document ID is set
-    open func logIn(_ documentId: String) async throws {
-        // If documentId is changing, log out first to clean up old listeners
+    /// Start listening for real-time updates on a document.
+    ///
+    /// This will:
+    /// 1. Clear old listeners if the document ID changed
+    /// 2. Persist the document ID locally (if persistence is enabled)
+    /// 3. Sync any pending writes
+    /// 4. Start a real-time Firestore listener
+    ///
+    /// - Parameter documentId: The document ID to listen to.
+    public func startListening(documentId: String) async throws {
+        // If documentId is changing, stop old listener first
         if self.documentId != documentId {
-            logOut()
+            stopListening()
         }
 
         // Only update documentId if it's different
         if self.documentId != documentId {
             self.documentId = documentId
-            try? local.saveDocumentId(managerKey: configuration.managerKey, documentId)
+            try? local?.saveDocumentId(managerKey: managerKey, documentId)
         }
 
         // Sync pending writes if enabled and available
-        if configuration.enablePendingWrites && !pendingWrites.isEmpty {
+        if enableLocalPersistence && !pendingWrites.isEmpty {
             await syncPendingWrites()
         }
 
@@ -108,15 +129,12 @@ open class DocumentManagerSync<T: DMProtocol> {
         startListener()
     }
 
-    /// Log out and clear all data
-    open func logOut() {
-        stopListening(clearCaches: true)
-    }
-
-    /// Stop listening for document updates
-    /// - Parameter clearCaches: If true, clears in-memory state and local persistence
-    open func stopListening(clearCaches: Bool = false) {
-        logger?.trackEvent(event: Event.listenerStopped(key: configuration.managerKey))
+    /// Stop listening for real-time updates.
+    ///
+    /// - Parameter clearCaches: If true (default), clears `currentDocument`, document ID,
+    ///   pending writes, and all local persistence. If false, only cancels the listener.
+    public func stopListening(clearCaches: Bool = true) {
+        logger?.trackEvent(event: Event.listenerStopped(key: managerKey))
         stopListener()
 
         if clearCaches {
@@ -126,23 +144,31 @@ open class DocumentManagerSync<T: DMProtocol> {
             pendingWrites = []
 
             // Clear local persistence
-            try? local.saveDocument(managerKey: configuration.managerKey, nil)
-            try? local.saveDocumentId(managerKey: configuration.managerKey, nil)
-            try? local.savePendingWrites(managerKey: configuration.managerKey, [])
+            if enableLocalPersistence {
+                try? local?.saveDocument(managerKey: managerKey, nil)
+                try? local?.saveDocumentId(managerKey: managerKey, nil)
+                try? local?.savePendingWrites(managerKey: managerKey, [])
+            }
 
-            logger?.trackEvent(event: Event.cachesCleared(key: configuration.managerKey))
+            logger?.trackEvent(event: Event.cachesCleared(key: managerKey))
         }
     }
 
-    /// Get the current document synchronously from cache
-    /// - Returns: The cached document, or nil if not available
+    // MARK: - Read
+
+    /// Get the current document synchronously from cache.
+    ///
+    /// Returns nil if `startListening(documentId:)` has not been called and no local persistence is available.
+    /// - Returns: The cached document, or nil if not available.
     public func getDocument() -> T? {
         return currentDocument
     }
 
-    /// Get the current document or throw if not available
-    /// - Returns: The document
-    /// - Throws: Error if no document available
+    /// Get the current document or throw if not available.
+    ///
+    /// Throws if `startListening(documentId:)` has not been called and no local persistence is available.
+    /// - Returns: The document.
+    /// - Throws: `DataManagerError.documentNotFound` if no document is cached.
     public func getDocumentOrThrow() throws -> T {
         guard let document = currentDocument else {
             throw DataManagerError.documentNotFound
@@ -150,69 +176,90 @@ open class DocumentManagerSync<T: DMProtocol> {
         return document
     }
 
-    /// Get document asynchronously - returns cached if available, otherwise fetches from remote
-    /// - Returns: The document
-    /// - Throws: Error if fetch fails or no document ID set
-    public func getDocumentAsync() async throws -> T {
+    /// Get the document asynchronously.
+    /// - Parameters:
+    ///   - id: Optional document ID. If nil, uses the stored document ID from `startListening`.
+    ///   - behavior: `.cachedOrFetch` (default) returns cached if available, `.alwaysFetch` always fetches from remote.
+    /// - Returns: The document.
+    /// - Throws: Error if fetch fails or no document ID is available.
+    public func getDocumentAsync(id: String? = nil, behavior: FetchBehavior = .cachedOrFetch) async throws -> T {
+        let resolvedId = id ?? documentId
+
         defer {
             if listenerFailedToAttach {
                 startListener()
             }
         }
 
-        guard let documentId else {
+        guard let resolvedId else {
             throw DataManagerError.noDocumentId
         }
 
-        // If we have it cached, return it
-        if let currentDocument {
+        // Return cached if available (only for cachedOrFetch with no explicit ID)
+        if behavior == .cachedOrFetch, id == nil, let currentDocument {
             return currentDocument
         }
 
-        // Otherwise fetch from remote
-        logger?.trackEvent(event: Event.getDocumentStart(key: configuration.managerKey, documentId: documentId))
+        // Fetch from remote
+        logger?.trackEvent(event: Event.getDocumentStart(key: managerKey, documentId: resolvedId))
 
         do {
-            let document = try await remote.getDocument(id: documentId)
-            logger?.trackEvent(event: Event.getDocumentSuccess(key: configuration.managerKey, documentId: documentId))
+            let document = try await remote.getDocument(id: resolvedId)
+            logger?.trackEvent(event: Event.getDocumentSuccess(key: managerKey, documentId: resolvedId))
             return document
         } catch {
-            logger?.trackEvent(event: Event.getDocumentFail(key: configuration.managerKey, documentId: documentId, error: error))
+            logger?.trackEvent(event: Event.getDocumentFail(key: managerKey, documentId: resolvedId, error: error))
             throw error
         }
     }
 
-    /// Save a complete document
-    /// - Parameter document: The document to save
-    /// - Throws: Error if save fails
-    open func saveDocument(_ document: T) async throws {
+    /// Get the current document ID.
+    /// - Returns: The document ID.
+    /// - Throws: `DataManagerError.noDocumentId` if no document ID is set.
+    public func getDocumentId() throws -> String {
+        guard let documentId else {
+            throw DataManagerError.noDocumentId
+        }
+        return documentId
+    }
+
+    // MARK: - Write
+
+    /// Save a complete document to remote.
+    /// - Parameter document: The document to save.
+    /// - Throws: Error if save fails.
+    public func saveDocument(_ document: T) async throws {
         defer {
             if listenerFailedToAttach {
                 startListener()
             }
         }
 
-        logger?.trackEvent(event: Event.saveStart(key: configuration.managerKey, documentId: document.id))
+        logger?.trackEvent(event: Event.saveStart(key: managerKey, documentId: document.id))
 
         do {
             try await remote.saveDocument(document)
-            logger?.trackEvent(event: Event.saveSuccess(key: configuration.managerKey, documentId: document.id))
+            logger?.trackEvent(event: Event.saveSuccess(key: managerKey, documentId: document.id))
 
             // Clear pending writes since full document save succeeded
-            if configuration.enablePendingWrites && !pendingWrites.isEmpty {
+            if enableLocalPersistence && !pendingWrites.isEmpty {
                 clearPendingWrites()
             }
         } catch {
-            logger?.trackEvent(event: Event.saveFail(key: configuration.managerKey, documentId: document.id, error: error))
+            logger?.trackEvent(event: Event.saveFail(key: managerKey, documentId: document.id, error: error))
             throw error
         }
     }
 
-    /// Update document with a dictionary of fields
-    /// - Parameter data: Dictionary of fields to update
-    /// - Throws: Error if update fails or no document ID
-    open func updateDocument(data: [String: any DMCodableSendable]) async throws {
-        guard let documentId else {
+    /// Update the document with a dictionary of fields.
+    /// - Parameters:
+    ///   - id: Optional document ID. If nil, uses the stored document ID from `startListening`.
+    ///   - data: Dictionary of fields to update.
+    /// - Throws: Error if update fails or no document ID is available.
+    public func updateDocument(id: String? = nil, data: [String: any DMCodableSendable]) async throws {
+        let resolvedId = id ?? documentId
+
+        guard let resolvedId else {
             throw DataManagerError.noDocumentId
         }
 
@@ -222,21 +269,21 @@ open class DocumentManagerSync<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.updateStart(key: configuration.managerKey, documentId: documentId))
+        logger?.trackEvent(event: Event.updateStart(key: managerKey, documentId: resolvedId))
 
         do {
-            try await remote.updateDocument(id: documentId, data: data)
-            logger?.trackEvent(event: Event.updateSuccess(key: configuration.managerKey, documentId: documentId))
+            try await remote.updateDocument(id: resolvedId, data: data)
+            logger?.trackEvent(event: Event.updateSuccess(key: managerKey, documentId: resolvedId))
 
             // Clear pending writes since update succeeded
-            if configuration.enablePendingWrites && !pendingWrites.isEmpty {
+            if enableLocalPersistence && !pendingWrites.isEmpty {
                 clearPendingWrites()
             }
         } catch {
-            logger?.trackEvent(event: Event.updateFail(key: configuration.managerKey, documentId: documentId, error: error))
+            logger?.trackEvent(event: Event.updateFail(key: managerKey, documentId: resolvedId, error: error))
 
             // Add to pending writes if enabled
-            if configuration.enablePendingWrites {
+            if enableLocalPersistence {
                 addPendingWrite(data)
             }
 
@@ -244,10 +291,13 @@ open class DocumentManagerSync<T: DMProtocol> {
         }
     }
 
-    /// Delete the current document
-    /// - Throws: Error if deletion fails or no document ID
-    open func deleteDocument() async throws {
-        guard let documentId else {
+    /// Delete a document.
+    /// - Parameter id: Optional document ID. If nil, uses the stored document ID from `startListening`.
+    /// - Throws: Error if deletion fails or no document ID is available.
+    public func deleteDocument(id: String? = nil) async throws {
+        let resolvedId = id ?? documentId
+
+        guard let resolvedId else {
             throw DataManagerError.noDocumentId
         }
 
@@ -257,55 +307,42 @@ open class DocumentManagerSync<T: DMProtocol> {
             }
         }
 
-        logger?.trackEvent(event: Event.deleteStart(key: configuration.managerKey, documentId: documentId))
+        logger?.trackEvent(event: Event.deleteStart(key: managerKey, documentId: resolvedId))
 
         do {
-            try await remote.deleteDocument(id: documentId)
-            logger?.trackEvent(event: Event.deleteSuccess(key: configuration.managerKey, documentId: documentId))
-            stopListening()
+            try await remote.deleteDocument(id: resolvedId)
+            logger?.trackEvent(event: Event.deleteSuccess(key: managerKey, documentId: resolvedId))
+            stopListener()
             handleDocumentUpdate(nil)
         } catch {
-            logger?.trackEvent(event: Event.deleteFail(key: configuration.managerKey, documentId: documentId, error: error))
+            logger?.trackEvent(event: Event.deleteFail(key: managerKey, documentId: resolvedId, error: error))
             throw error
         }
     }
 
-    /// Get the current document ID
-    /// - Returns: The document ID
-    /// - Throws: Error if no document ID is set
-    public final func getDocumentId() throws -> String {
-        guard let documentId else {
-            throw DataManagerError.noDocumentId
-        }
-        return documentId
-    }
+    // MARK: - Private: Document Update Handler
 
-    // MARK: - Protected Methods (Overridable)
-
-    /// Called when document data is updated. Subclasses can override to add custom behavior.
-    /// - Important: Always call `super.handleDocumentUpdate(_:)` to ensure proper functionality.
-    /// - Parameter document: The updated document (nil if document was deleted)
-    open func handleDocumentUpdate(_ document: T?) {
+    private func handleDocumentUpdate(_ document: T?) {
         currentDocument = document
 
         if let document {
-            try? local.saveDocument(managerKey: configuration.managerKey, document)
-            logger?.trackEvent(event: Event.documentUpdated(key: configuration.managerKey, documentId: document.id))
+            try? local?.saveDocument(managerKey: managerKey, document)
+            logger?.trackEvent(event: Event.documentUpdated(key: managerKey, documentId: document.id))
 
             // Add document properties to logger
             logger?.addUserProperties(dict: document.eventParameters, isHighPriority: true)
         } else {
-            try? local.saveDocument(managerKey: configuration.managerKey, nil)
-            logger?.trackEvent(event: Event.documentDeleted(key: configuration.managerKey))
+            try? local?.saveDocument(managerKey: managerKey, nil)
+            logger?.trackEvent(event: Event.documentDeleted(key: managerKey))
         }
     }
 
-    // MARK: - Private Methods
+    // MARK: - Private: Listener
 
     private func startListener() {
         guard let documentId else { return }
 
-        logger?.trackEvent(event: Event.listenerStart(key: configuration.managerKey, documentId: documentId))
+        logger?.trackEvent(event: Event.listenerStart(key: managerKey, documentId: documentId))
         listenerFailedToAttach = false
 
         currentDocumentListenerTask?.cancel()
@@ -320,20 +357,20 @@ open class DocumentManagerSync<T: DMProtocol> {
                     handleDocumentUpdate(document)
 
                     if document != nil {
-                        logger?.trackEvent(event: Event.listenerSuccess(key: configuration.managerKey, documentId: documentId))
+                        logger?.trackEvent(event: Event.listenerSuccess(key: managerKey, documentId: documentId))
                     } else {
-                        logger?.trackEvent(event: Event.listenerEmpty(key: configuration.managerKey, documentId: documentId))
+                        logger?.trackEvent(event: Event.listenerEmpty(key: managerKey, documentId: documentId))
                     }
                 }
             } catch {
-                logger?.trackEvent(event: Event.listenerFail(key: configuration.managerKey, documentId: documentId, error: error))
+                logger?.trackEvent(event: Event.listenerFail(key: managerKey, documentId: documentId, error: error))
                 self.listenerFailedToAttach = true
 
                 // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
                 self.listenerRetryCount += 1
                 let delay = min(pow(2.0, Double(self.listenerRetryCount)), 60.0)
 
-                logger?.trackEvent(event: Event.listenerRetrying(key: configuration.managerKey, documentId: documentId, retryCount: self.listenerRetryCount, delaySeconds: delay))
+                logger?.trackEvent(event: Event.listenerRetrying(key: managerKey, documentId: documentId, retryCount: self.listenerRetryCount, delaySeconds: delay))
 
                 // Schedule retry with exponential backoff
                 self.listenerRetryTask?.cancel()
@@ -355,8 +392,10 @@ open class DocumentManagerSync<T: DMProtocol> {
         listenerRetryCount = 0
     }
 
+    // MARK: - Private: Pending Writes
+
     private func addPendingWrite(_ data: [String: any DMCodableSendable]) {
-        // DocumentManagerSync manages a single document, so merge all pending writes
+        // DocumentSyncEngine manages a single document, so merge all pending writes
         if let lastWrite = pendingWrites.last {
             // Merge new fields into existing write (new values overwrite old)
             let mergedWrite = lastWrite.merging(with: data)
@@ -367,20 +406,20 @@ open class DocumentManagerSync<T: DMProtocol> {
             pendingWrites.append(newWrite)
         }
 
-        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
-        logger?.trackEvent(event: Event.pendingWriteAdded(key: configuration.managerKey, count: pendingWrites.count))
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
+        logger?.trackEvent(event: Event.pendingWriteAdded(key: managerKey, count: pendingWrites.count))
     }
 
     private func clearPendingWrites() {
         pendingWrites = []
-        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
-        logger?.trackEvent(event: Event.pendingWritesCleared(key: configuration.managerKey))
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
+        logger?.trackEvent(event: Event.pendingWritesCleared(key: managerKey))
     }
 
     private func syncPendingWrites() async {
         guard let documentId, !pendingWrites.isEmpty else { return }
 
-        logger?.trackEvent(event: Event.syncPendingWritesStart(key: configuration.managerKey, count: pendingWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesStart(key: managerKey, count: pendingWrites.count))
 
         var successCount = 0
         var failedWrites: [PendingWrite] = []
@@ -396,9 +435,9 @@ open class DocumentManagerSync<T: DMProtocol> {
 
         // Update pending writes with only failed ones
         pendingWrites = failedWrites
-        try? local.savePendingWrites(managerKey: configuration.managerKey, pendingWrites)
+        try? local?.savePendingWrites(managerKey: managerKey, pendingWrites)
 
-        logger?.trackEvent(event: Event.syncPendingWritesComplete(key: configuration.managerKey, synced: successCount, failed: failedWrites.count))
+        logger?.trackEvent(event: Event.syncPendingWritesComplete(key: managerKey, synced: successCount, failed: failedWrites.count))
     }
 
     // MARK: - Errors
@@ -419,7 +458,7 @@ open class DocumentManagerSync<T: DMProtocol> {
 
     // MARK: - Events
 
-    enum Event: DataLogEvent {
+    enum Event: DataSyncLogEvent {
         case getDocumentStart(key: String, documentId: String)
         case getDocumentSuccess(key: String, documentId: String)
         case getDocumentFail(key: String, documentId: String, error: Error)
