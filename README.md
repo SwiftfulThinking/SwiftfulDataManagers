@@ -1,3 +1,5 @@
+### 🚀 Learn how to build and use this package: https://www.swiftful-thinking.com/offers/REyNLwwH
+
 # SwiftfulDataManagers
 
 Real-time data sync engines for Swift. Manages documents and collections with optional local persistence, pending writes, and streaming updates. Built for composition — not subclassing.
