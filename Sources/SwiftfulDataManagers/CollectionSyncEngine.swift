@@ -147,6 +147,8 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     // MARK: - Read: Collection
 
     /// Get the entire collection synchronously from cache.
+    ///
+    /// Returns empty if `startListening()` has not been called and no local persistence is available.
     /// - Returns: Array of all documents in the collection.
     public func getCollection() -> [T] {
         return currentCollection
@@ -184,6 +186,8 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     // MARK: - Read: Single Document
 
     /// Get a single document by ID synchronously from cache.
+    ///
+    /// Returns nil if `startListening()` has not been called and no local persistence is available.
     /// - Parameter id: The document ID.
     /// - Returns: The document if found, nil otherwise.
     public func getDocument(id: String) -> T? {
@@ -238,6 +242,8 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     // MARK: - Read: Filtered
 
     /// Get documents filtered by a condition synchronously from cache.
+    ///
+    /// Returns empty if `startListening()` has not been called and no local persistence is available.
     /// - Parameter predicate: Filtering condition.
     /// - Returns: Filtered array of documents.
     public func getDocuments(where predicate: (T) -> Bool) -> [T] {

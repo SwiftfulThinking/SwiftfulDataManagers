@@ -157,12 +157,16 @@ public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
     // MARK: - Read
 
     /// Get the current document synchronously from cache.
+    ///
+    /// Returns nil if `startListening(documentId:)` has not been called and no local persistence is available.
     /// - Returns: The cached document, or nil if not available.
     public func getDocument() -> T? {
         return currentDocument
     }
 
     /// Get the current document or throw if not available.
+    ///
+    /// Throws if `startListening(documentId:)` has not been called and no local persistence is available.
     /// - Returns: The document.
     /// - Throws: `DataManagerError.documentNotFound` if no document is cached.
     public func getDocumentOrThrow() throws -> T {

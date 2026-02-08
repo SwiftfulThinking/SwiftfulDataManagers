@@ -56,10 +56,10 @@ Use `CollectionSyncEngine` when managing **a list of documents** (e.g., products
 
 ```swift
 // Single document — one user profile
-let userEngine = DocumentSyncEngine<UserModel>(...)
+let userSyncEngine = DocumentSyncEngine<UserModel>(...)
 
 // Collection of documents — list of products
-let productsEngine = CollectionSyncEngine<Product>(...)
+let productsSyncEngine = CollectionSyncEngine<Product>(...)
 ```
 
 ## DocumentSyncEngine
@@ -95,7 +95,7 @@ engine.stopListening(clearCaches: false)
 ### Read
 
 ```swift
-// Sync — from cache (returns nil if not cached)
+// Sync — from cache (requires startListening or local persistence, otherwise returns nil)
 let user = engine.currentDocument
 let user = engine.getDocument()
 let user = try engine.getDocumentOrThrow()
@@ -108,6 +108,9 @@ let user = try await engine.getDocumentAsync(behavior: .alwaysFetch)
 
 // Async — fetch a specific document by ID (no listener needed)
 let user = try await engine.getDocumentAsync(id: "user_456")
+
+// Get stored document ID
+let documentId = try engine.getDocumentId()
 ```
 
 ### Write
@@ -183,7 +186,7 @@ engine.stopListening(clearCaches: false)
 ### Read
 
 ```swift
-// Sync — from cache
+// Sync — from cache (requires startListening or local persistence, otherwise returns empty/nil)
 let products = engine.currentCollection
 let products = engine.getCollection()
 let product = engine.getDocument(id: "product_123")
@@ -196,7 +199,7 @@ let product = try await engine.getDocumentAsync(id: "product_123")
 let products = try await engine.getCollectionAsync(behavior: .alwaysFetch)
 let product = try await engine.getDocumentAsync(id: "product_123", behavior: .alwaysFetch)
 
-// Filter from cache
+// Filter from cache (requires startListening or local persistence, otherwise returns empty)
 let cheap = engine.getDocuments(where: { $0.price < 10 })
 
 // Filter async (cached or fetch, then filter)
@@ -255,94 +258,70 @@ Engines are designed for **composition** — wrap them in your own manager class
 
 ### Single Engine
 
+Engines are created in the Dependencies layer and injected into managers:
+
 ```swift
 @MainActor
 @Observable
 class UserManager {
-    private let engine: DocumentSyncEngine<UserModel>
+    private let userSyncEngine: DocumentSyncEngine<UserModel>
 
-    var currentUser: UserModel? { engine.currentDocument }
+    var currentUser: UserModel? { userSyncEngine.currentDocument }
 
-    init(
-        remote: any RemoteDocumentService<UserModel>,
-        managerKey: String,
-        enableLocalPersistence: Bool = true,
-        logger: (any DataLogger)? = nil
-    ) {
-        self.engine = DocumentSyncEngine(
-            remote: remote,
-            managerKey: managerKey,
-            enableLocalPersistence: enableLocalPersistence,
-            logger: logger
-        )
+    init(userSyncEngine: DocumentSyncEngine<UserModel>) {
+        self.userSyncEngine = userSyncEngine
     }
 
     func signIn(userId: String) async throws {
-        try await engine.startListening(documentId: userId)
+        try await userSyncEngine.startListening(documentId: userId)
     }
 
     func signOut() {
-        engine.stopListening()
+        userSyncEngine.stopListening()
     }
 
     func updateName(_ name: String) async throws {
-        try await engine.updateDocument(data: ["name": name])
+        try await userSyncEngine.updateDocument(data: ["name": name])
     }
 }
 ```
 
 ### Multiple Engines in One Manager
 
-A single manager can own multiple engines, each pointing to a different remote collection and persisting under a different local key:
+A single manager can own multiple engines, each with its own remote source, `managerKey`, and `enableLocalPersistence` setting. All engines are injected:
 
 ```swift
 @MainActor
 @Observable
 class ContentManager {
-    private let moviesEngine: CollectionSyncEngine<Movie>
-    private let tvShowsEngine: CollectionSyncEngine<TVShow>
-    private let watchlistEngine: CollectionSyncEngine<WatchlistItem>
+    private let moviesSyncEngine: CollectionSyncEngine<Movie>
+    private let tvShowsSyncEngine: CollectionSyncEngine<TVShow>
+    private let watchlistSyncEngine: CollectionSyncEngine<WatchlistItem>
 
-    var movies: [Movie] { moviesEngine.currentCollection }
-    var tvShows: [TVShow] { tvShowsEngine.currentCollection }
-    var watchlist: [WatchlistItem] { watchlistEngine.currentCollection }
+    var movies: [Movie] { moviesSyncEngine.currentCollection }
+    var tvShows: [TVShow] { tvShowsSyncEngine.currentCollection }
+    var watchlist: [WatchlistItem] { watchlistSyncEngine.currentCollection }
 
     init(
-        moviesRemote: any RemoteCollectionService<Movie>,
-        tvShowsRemote: any RemoteCollectionService<TVShow>,
-        watchlistRemote: any RemoteCollectionService<WatchlistItem>,
-        logger: (any DataLogger)? = nil
+        moviesSyncEngine: CollectionSyncEngine<Movie>,
+        tvShowsSyncEngine: CollectionSyncEngine<TVShow>,
+        watchlistSyncEngine: CollectionSyncEngine<WatchlistItem>
     ) {
-        self.moviesEngine = CollectionSyncEngine(
-            remote: moviesRemote,
-            managerKey: "movies",
-            enableLocalPersistence: true,
-            logger: logger
-        )
-        self.tvShowsEngine = CollectionSyncEngine(
-            remote: tvShowsRemote,
-            managerKey: "tvShows",
-            enableLocalPersistence: false,
-            logger: logger
-        )
-        self.watchlistEngine = CollectionSyncEngine(
-            remote: watchlistRemote,
-            managerKey: "watchlist",
-            enableLocalPersistence: true,
-            logger: logger
-        )
+        self.moviesSyncEngine = moviesSyncEngine
+        self.tvShowsSyncEngine = tvShowsSyncEngine
+        self.watchlistSyncEngine = watchlistSyncEngine
     }
 
     func startListening() async {
-        await moviesEngine.startListening()
-        await tvShowsEngine.startListening()
-        await watchlistEngine.startListening()
+        await moviesSyncEngine.startListening()
+        await tvShowsSyncEngine.startListening()
+        await watchlistSyncEngine.startListening()
     }
 
     func stopListening() {
-        moviesEngine.stopListening()
-        tvShowsEngine.stopListening()
-        watchlistEngine.stopListening()
+        moviesSyncEngine.stopListening()
+        tvShowsSyncEngine.stopListening()
+        watchlistSyncEngine.stopListening()
     }
 }
 ```
@@ -351,27 +330,23 @@ Each engine is fully independent — its own remote source, its own local persis
 
 ### Dynamic Collection Paths
 
-For user-scoped collections where the path changes (e.g., on account switch), use a closure for the collection path:
+For user-scoped collections where the path changes (e.g., on account switch), use a closure for the collection path when creating the engine in Dependencies:
 
 ```swift
-let engine = CollectionSyncEngine<WatchlistItem>(
+// In Dependencies
+let watchlistSyncEngine = CollectionSyncEngine<WatchlistItem>(
     remote: FirebaseRemoteCollectionService(
         collectionPath: { [weak authManager] in
             guard let uid = authManager?.currentUserId else { return nil }
             return "users/\(uid)/watchlist"
         }
     ),
-    managerKey: "watchlist")
+    managerKey: "watchlist"
 )
 
-// On sign-in: closure resolves to new user's path
-await engine.startListening()
-
-// On sign-out: clears old data, stops listener
-engine.stopListening()
-
-// On new sign-in: closure now returns new user's path
-await engine.startListening()
+// On sign-in: startListening() resolves to new user's path
+// On sign-out: stopListening() clears old data
+// On new sign-in: startListening() resolves to new user's path
 ```
 
 </details>
@@ -446,7 +421,7 @@ let engine = DocumentSyncEngine<UserModel>(
 
 // Mock — no persistence, no real remote
 let engine = DocumentSyncEngine<UserModel>(
-    remote: MockRemoteDocumentService(document: .mock),
+    remote: MockRemoteDocumentService(),
     managerKey: "test",
     enableLocalPersistence: false
 )
@@ -463,12 +438,12 @@ let engine = CollectionSyncEngine<Product>(
 
 ```swift
 // Remote services
-MockRemoteDocumentService<T>(document: T.mock)
-MockRemoteCollectionService<T>(collection: T.mocks)
+MockRemoteDocumentService<T>(document: T? = nil)
+MockRemoteCollectionService<T>(collection: [T] = [])
 
 // Local persistence (for custom implementations)
-MockLocalDocumentPersistence<T>(document: T.mock)
-MockLocalCollectionPersistence<T>(collection: T.mocks)
+MockLocalDocumentPersistence<T>(document: T? = nil)
+MockLocalCollectionPersistence<T>(collection: [T] = [])
 ```
 
 </details>
