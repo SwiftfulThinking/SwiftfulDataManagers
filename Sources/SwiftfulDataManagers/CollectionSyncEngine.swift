@@ -314,6 +314,76 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         }
     }
 
+    /// Stream real-time snapshots of the entire collection.
+    ///
+    /// Returns the full collection array on each change, without affecting `currentCollection`.
+    /// - Returns: An async stream of the full collection array.
+    public func streamCollection() -> AsyncThrowingStream<[T], Error> {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
+        logger?.trackEvent(event: Event.streamCollectionStart(key: managerKey))
+        return remote.streamCollection()
+    }
+
+    /// Stream real-time snapshots of documents matching a query.
+    ///
+    /// Returns the filtered collection array on each change, without affecting `currentCollection`.
+    /// - Parameter buildQuery: Closure to build the query.
+    /// - Returns: An async stream of the filtered collection array.
+    public func streamCollection(
+        buildQuery: (QueryBuilder) -> QueryBuilder
+    ) -> AsyncThrowingStream<[T], Error> {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
+        let query = buildQuery(QueryBuilder())
+        let filterCount = query.getFilters().count
+        logger?.trackEvent(event: Event.streamCollectionQueryStart(key: managerKey, filterCount: filterCount))
+        return remote.streamCollection(query: query)
+    }
+
+    /// Stream real-time updates for individual documents in the collection.
+    ///
+    /// Returns update and deletion streams without affecting `currentCollection`.
+    /// - Returns: Tuple of (updates stream, deletions stream).
+    public func streamCollectionUpdates() -> (updates: AsyncThrowingStream<T, Error>, deletions: AsyncThrowingStream<String, Error>) {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
+        logger?.trackEvent(event: Event.streamCollectionUpdatesStart(key: managerKey))
+        return remote.streamCollectionUpdates()
+    }
+
+    /// Stream real-time updates for documents matching a query.
+    ///
+    /// Returns update and deletion streams scoped to the query, without affecting `currentCollection`.
+    /// - Parameter buildQuery: Closure to build the query.
+    /// - Returns: Tuple of (updates stream, deletions stream) for documents matching the query.
+    public func streamCollectionUpdates(
+        buildQuery: (QueryBuilder) -> QueryBuilder
+    ) -> (updates: AsyncThrowingStream<T, Error>, deletions: AsyncThrowingStream<String, Error>) {
+        defer {
+            if listenerFailedToAttach {
+                startListener()
+            }
+        }
+
+        let query = buildQuery(QueryBuilder())
+        let filterCount = query.getFilters().count
+        logger?.trackEvent(event: Event.streamCollectionUpdatesQueryStart(key: managerKey, filterCount: filterCount))
+        return remote.streamCollectionUpdates(query: query)
+    }
+
     // MARK: - Write
 
     /// Save a complete document to remote.
@@ -632,6 +702,10 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         case cachesCleared(key: String)
         case syncPendingWritesStart(key: String, count: Int)
         case syncPendingWritesComplete(key: String, synced: Int, failed: Int)
+        case streamCollectionStart(key: String)
+        case streamCollectionQueryStart(key: String, filterCount: Int)
+        case streamCollectionUpdatesStart(key: String)
+        case streamCollectionUpdatesQueryStart(key: String, filterCount: Int)
         case queryChanged(key: String, filterCount: Int)
 
         var eventName: String {
@@ -669,7 +743,11 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
             case .cachesCleared(let key):                   return "\(key)_cachesCleared"
             case .syncPendingWritesStart(let key, _):       return "\(key)_syncPendingWrites_start"
             case .syncPendingWritesComplete(let key, _, _): return "\(key)_syncPendingWrites_complete"
-            case .queryChanged(let key, _):                  return "\(key)_queryChanged"
+            case .streamCollectionStart(let key):                   return "\(key)_streamCollection_start"
+            case .streamCollectionQueryStart(let key, _):           return "\(key)_streamCollectionQuery_start"
+            case .streamCollectionUpdatesStart(let key):            return "\(key)_streamCollectionUpdates_start"
+            case .streamCollectionUpdatesQueryStart(let key, _):    return "\(key)_streamCollectionUpdatesQuery_start"
+            case .queryChanged(let key, _):                         return "\(key)_queryChanged"
             }
         }
 
@@ -717,6 +795,9 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
             case .syncPendingWritesComplete(_, let synced, let failed):
                 dict["synced_count"] = synced
                 dict["failed_count"] = failed
+            case .streamCollectionQueryStart(_, let filterCount),
+                 .streamCollectionUpdatesQueryStart(_, let filterCount):
+                dict["filter_count"] = filterCount
             case .queryChanged(_, let filterCount):
                 dict["filter_count"] = filterCount
             default:
