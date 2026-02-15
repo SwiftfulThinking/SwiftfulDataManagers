@@ -9,12 +9,13 @@ import Foundation
 import Testing
 @testable import SwiftfulDataManagers
 
-@Suite("CollectionManagerAsync Tests")
+@Suite("CollectionSyncEngine Async Tests")
+@MainActor
 struct CollectionManagerAsyncTests {
 
     // MARK: - Test Model
 
-    struct TestItem: DMProtocol {
+    struct TestItem: DataSyncModelProtocol {
         let id: String
         var title: String
         var priority: Int
@@ -23,11 +24,15 @@ struct CollectionManagerAsyncTests {
 
     // MARK: - Helper
 
-    func createManager(collection: [TestItem] = []) -> (CollectionManagerAsync<TestItem>, MockRemoteCollectionService<TestItem>) {
-        let service = MockRemoteCollectionService<TestItem>(collection: collection)
-        let config = DataManagerAsyncConfiguration(managerKey: "test_items")
-        let manager = CollectionManagerAsync(service: service, configuration: config, logger: nil)
-        return (manager, service)
+    func createEngine(collection: [TestItem] = []) -> (CollectionSyncEngine<TestItem>, MockRemoteCollectionService<TestItem>) {
+        let remote = MockRemoteCollectionService<TestItem>(collection: collection)
+        let engine = CollectionSyncEngine<TestItem>(
+            remote: remote,
+            managerKey: "test_items",
+            enableLocalPersistence: false,
+            logger: nil
+        )
+        return (engine, remote)
     }
 
     // MARK: - Get Collection Tests
@@ -39,9 +44,11 @@ struct CollectionManagerAsyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        let result = try await manager.getCollection()
+        await engine.startListening()
+
+        let result = try await engine.getCollectionAsync()
 
         #expect(result.count == 3)
         #expect(result.first?.title == "Item 1")
@@ -56,9 +63,11 @@ struct CollectionManagerAsyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        let document = try await manager.getDocument(id: "2")
+        await engine.startListening()
+
+        let document = try await engine.getDocumentAsync(id: "2")
 
         #expect(document.title == "Item 2")
         #expect(document.priority == 2)
@@ -74,9 +83,11 @@ struct CollectionManagerAsyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        let results = try await manager.getDocuments { query in
+        await engine.startListening()
+
+        let results = try await engine.getDocumentsAsync { query in
             query.where("priority", isGreaterThan: 1)
         }
 
@@ -88,14 +99,16 @@ struct CollectionManagerAsyncTests {
 
     @Test("Save document updates remote")
     func testSaveDocument() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
+
+        await engine.startListening()
 
         let newItem = TestItem(id: "new_1", title: "New Item", priority: 5, isCompleted: false)
 
-        try await manager.saveDocument(newItem)
+        try await engine.saveDocument(newItem)
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Update Document Tests
@@ -105,12 +118,14 @@ struct CollectionManagerAsyncTests {
         let items = [
             TestItem(id: "1", title: "Original", priority: 1, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        try await manager.updateDocument(id: "1", data: ["title": "Updated", "priority": 10])
+        await engine.startListening()
+
+        try await engine.updateDocument(id: "1", data: ["title": "Updated", "priority": 10])
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Delete Document Tests
@@ -121,22 +136,26 @@ struct CollectionManagerAsyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        try await manager.deleteDocument(id: "1")
+        await engine.startListening()
+
+        try await engine.deleteDocument(id: "1")
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Error Handling Tests
 
     @Test("Get document handles not found error")
     func testGetDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
+
+        await engine.startListening()
 
         do {
-            _ = try await manager.getDocument(id: "nonexistent")
+            _ = try await engine.getDocumentAsync(id: "nonexistent")
             Issue.record("Should have thrown error")
         } catch {
             // Expected error
@@ -145,10 +164,12 @@ struct CollectionManagerAsyncTests {
 
     @Test("Delete document handles not found error")
     func testDeleteDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
+
+        await engine.startListening()
 
         do {
-            try await manager.deleteDocument(id: "nonexistent")
+            try await engine.deleteDocument(id: "nonexistent")
             Issue.record("Should have thrown error")
         } catch {
             // Expected error

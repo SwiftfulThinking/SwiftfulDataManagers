@@ -74,4 +74,12 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Returns: Array of documents matching all query filters
     /// - Throws: Error if query fails
     func getDocuments(query: QueryBuilder) async throws -> [T]
+
+    /// Stream real-time updates for documents matching a query
+    /// - Parameter query: QueryBuilder with filter conditions
+    /// - Returns: Tuple of (updates stream, deletions stream) scoped to the query
+    func streamCollectionUpdates(query: QueryBuilder) -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    )
 }

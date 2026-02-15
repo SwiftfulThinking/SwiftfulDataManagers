@@ -9,13 +9,13 @@ import Foundation
 import Testing
 @testable import SwiftfulDataManagers
 
-@Suite("DocumentManagerSync Tests")
+@Suite("DocumentSyncEngine Tests")
 @MainActor
 struct DocumentManagerSyncTests {
 
     // MARK: - Test Model
 
-    struct TestUser: DMProtocol {
+    struct TestUser: DataSyncModelProtocol {
         let id: String
         var name: String
         var age: Int
@@ -24,61 +24,53 @@ struct DocumentManagerSyncTests {
 
     // MARK: - Helper
 
-    func createManager(document: TestUser? = nil) -> (DocumentManagerSync<TestUser>, MockDMDocumentServices<TestUser>) {
-        let services = MockDMDocumentServices<TestUser>(document: document)
-        let config = DataManagerSyncConfiguration(managerKey: "test_user")
-        let manager = DocumentManagerSync(services: services, configuration: config, logger: nil)
-        return (manager, services)
+    func createEngine(document: TestUser? = nil) -> (DocumentSyncEngine<TestUser>, MockRemoteDocumentService<TestUser>) {
+        let remote = MockRemoteDocumentService<TestUser>(document: document)
+        let engine = DocumentSyncEngine<TestUser>(
+            remote: remote,
+            managerKey: "test_user",
+            enableLocalPersistence: false,
+            logger: nil
+        )
+        return (engine, remote)
     }
 
     // MARK: - Initialization Tests
 
     @Test("Initialize with nil document")
     func testInitialization() {
-        let (manager, _) = createManager()
-        #expect(manager.currentDocument == nil)
+        let (engine, _) = createEngine()
+        #expect(engine.currentDocument == nil)
     }
 
-    @Test("Initialize with cached document from local persistence")
-    func testInitializationWithCache() {
-        let user = TestUser(id: "user_123", name: "Cached", age: 30, email: "cached@example.com")
-        let services = MockDMDocumentServices<TestUser>(document: user)
-        let config = DataManagerSyncConfiguration(managerKey: "test_user")
+    // MARK: - Start / Stop Listening Tests
 
-        let manager = DocumentManagerSync(services: services, configuration: config, logger: nil)
-
-        #expect(manager.currentDocument?.name == "Cached")
-        #expect(manager.currentDocument?.age == 30)
-    }
-
-    // MARK: - Log In / Log Out Tests
-
-    @Test("Log in starts listener and fetches document")
-    func testLogIn() async throws {
+    @Test("Start listening starts listener and fetches document")
+    func testStartListening() async throws {
         let user = TestUser(id: "user_123", name: "John", age: 30, email: "john@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.logIn("user_123")
+        try await engine.startListening(documentId: "user_123")
 
         // Wait for listener to establish and fetch document
         try await Task.sleep(for: .milliseconds(100))
 
-        #expect(manager.currentDocument != nil)
+        #expect(engine.currentDocument != nil)
     }
 
-    @Test("Log out clears document")
-    func testLogOut() async throws {
+    @Test("Stop listening clears document")
+    func testStopListening() async throws {
         let user = TestUser(id: "user_123", name: "Jane", age: 25, email: "jane@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.logIn("user_123")
+        try await engine.startListening(documentId: "user_123")
         try await Task.sleep(for: .milliseconds(100))
 
-        #expect(manager.currentDocument != nil)
+        #expect(engine.currentDocument != nil)
 
-        manager.logOut()
+        engine.stopListening()
 
-        #expect(manager.currentDocument == nil)
+        #expect(engine.currentDocument == nil)
     }
 
     // MARK: - Get Document Tests
@@ -86,11 +78,11 @@ struct DocumentManagerSyncTests {
     @Test("Get document async fetches from remote")
     func testGetDocumentAsync() async throws {
         let user = TestUser(id: "user_123", name: "Alice", age: 28, email: "alice@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.logIn("user_123")
+        try await engine.startListening(documentId: "user_123")
 
-        let result = try await manager.getDocumentAsync()
+        let result = try await engine.getDocumentAsync()
 
         #expect(result.id == "user_123")
         #expect(result.name == "Alice")
@@ -100,12 +92,12 @@ struct DocumentManagerSyncTests {
     @Test("Get document sync returns current document")
     func testGetDocument() async throws {
         let user = TestUser(id: "user_123", name: "Bob", age: 35, email: "bob@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.logIn("user_123")
-        _ = try await manager.getDocumentAsync()
+        try await engine.startListening(documentId: "user_123")
+        _ = try await engine.getDocumentAsync()
 
-        let result = manager.getDocument()
+        let result = engine.getDocument()
 
         #expect(result?.name == "Bob")
         #expect(result?.age == 35)
@@ -113,20 +105,20 @@ struct DocumentManagerSyncTests {
 
     // MARK: - Save Document Tests
 
-    @Test("Save document updates remote and local")
+    @Test("Save document updates remote")
     func testSaveDocument() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
 
         let user = TestUser(id: "user_123", name: "Charlie", age: 40, email: "charlie@example.com")
 
-        try await manager.logIn("user_123")
-        try await manager.saveDocument(user)
+        try await engine.startListening(documentId: "user_123")
+        try await engine.saveDocument(user)
 
         // Wait for save to complete
         try await Task.sleep(for: .milliseconds(600))
 
-        #expect(manager.currentDocument?.name == "Charlie")
-        #expect(manager.currentDocument?.age == 40)
+        #expect(engine.currentDocument?.name == "Charlie")
+        #expect(engine.currentDocument?.age == 40)
     }
 
     // MARK: - Update Document Tests
@@ -134,14 +126,14 @@ struct DocumentManagerSyncTests {
     @Test("Update document sends partial updates")
     func testUpdateDocument() async throws {
         let user = TestUser(id: "user_123", name: "Dave", age: 32, email: "dave@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.logIn("user_123")
+        try await engine.startListening(documentId: "user_123")
 
-        try await manager.updateDocument(data: ["name": "David", "age": 33])
+        try await engine.updateDocument(data: ["name": "David", "age": 33])
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Delete Document Tests
@@ -149,31 +141,31 @@ struct DocumentManagerSyncTests {
     @Test("Delete document removes from remote")
     func testDeleteDocument() async throws {
         let user = TestUser(id: "user_123", name: "Eve", age: 27, email: "eve@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.logIn("user_123")
-        _ = try await manager.getDocumentAsync()
+        try await engine.startListening(documentId: "user_123")
+        _ = try await engine.getDocumentAsync()
 
-        #expect(manager.currentDocument != nil)
+        #expect(engine.currentDocument != nil)
 
-        try await manager.deleteDocument()
+        try await engine.deleteDocument()
 
         // Wait for deletion to propagate
         try await Task.sleep(for: .milliseconds(600))
 
-        #expect(manager.currentDocument == nil)
+        #expect(engine.currentDocument == nil)
     }
 
     // MARK: - Error Handling Tests
 
     @Test("Get document handles not found error")
     func testGetDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
 
-        try await manager.logIn("nonexistent_id")
+        try await engine.startListening(documentId: "nonexistent_id")
 
         do {
-            _ = try await manager.getDocumentAsync()
+            _ = try await engine.getDocumentAsync()
             Issue.record("Should have thrown error")
         } catch {
             // Expected error
@@ -182,12 +174,12 @@ struct DocumentManagerSyncTests {
 
     @Test("Delete document handles not found error")
     func testDeleteDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
 
-        try await manager.logIn("nonexistent_id")
+        try await engine.startListening(documentId: "nonexistent_id")
 
         do {
-            try await manager.deleteDocument()
+            try await engine.deleteDocument()
             Issue.record("Should have thrown error")
         } catch {
             // Expected error

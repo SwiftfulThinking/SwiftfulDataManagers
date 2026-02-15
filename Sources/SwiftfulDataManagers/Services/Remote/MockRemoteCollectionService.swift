@@ -122,6 +122,14 @@ public final class MockRemoteCollectionService<T: DataSyncModelProtocol>: Remote
         return currentCollection
     }
 
+    public nonisolated func streamCollectionUpdates(query: QueryBuilder) -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    ) {
+        // Mock delegates to unfiltered stream (mock doesn't filter)
+        return streamCollectionUpdates()
+    }
+
     // MARK: - Mock Error
 
     enum MockError: LocalizedError {

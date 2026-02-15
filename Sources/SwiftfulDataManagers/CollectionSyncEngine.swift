@@ -64,6 +64,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     private var listenerFailedToAttach: Bool = false
     private var listenerRetryCount: Int = 0
     private var listenerRetryTask: Task<Void, Never>?
+    private var currentQuery: QueryBuilder?
 
     // MARK: - Initialization
 
@@ -100,13 +101,41 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
 
     // MARK: - Lifecycle
 
-    /// Start listening for real-time collection updates.
+    /// Start listening for real-time collection updates, optionally filtered by a query.
     ///
     /// This will:
     /// 1. Sync any pending writes
-    /// 2. Bulk load the entire collection from remote
+    /// 2. Bulk load the collection (or filtered subset) from remote
     /// 3. Start streaming individual document changes (adds, updates, deletions)
-    public func startListening() async {
+    ///
+    /// If `buildQuery` is provided, only documents matching the query are loaded and streamed.
+    /// Calling again with the same query is a no-op. Calling with a different query (or switching
+    /// between query and nil) stops the old listener, clears the collection and local cache, and
+    /// starts fresh with the new query.
+    ///
+    /// - Parameter buildQuery: Optional closure to build a query. Pass `nil` (default) to listen
+    ///   to the full collection.
+    public func startListening(
+        buildQuery: ((QueryBuilder) -> QueryBuilder)? = nil
+    ) async {
+        let newQuery = buildQuery.map { $0(QueryBuilder()) }
+
+        // If query hasn't changed and listener is already running, no-op
+        let queryChanged = newQuery != currentQuery
+
+        if !queryChanged && (updatesListenerTask != nil || deletionsListenerTask != nil) {
+            return
+        }
+
+        // If query changed, stop old listener and clear caches
+        if queryChanged {
+            logger?.trackEvent(event: Event.queryChanged(key: managerKey, filterCount: newQuery?.getFilters().count ?? 0))
+            stopListener()
+            currentCollection = []
+        }
+
+        currentQuery = newQuery
+
         logger?.trackEvent(event: Event.listenerStart(key: managerKey))
 
         // Sync pending writes if enabled and available
@@ -385,7 +414,12 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         logger?.trackEvent(event: Event.bulkLoadStart(key: managerKey))
 
         do {
-            let collection = try await remote.getCollection()
+            let collection: [T]
+            if let query = currentQuery {
+                collection = try await remote.getDocuments(query: query)
+            } else {
+                collection = try await remote.getCollection()
+            }
             handleCollectionUpdate(collection)
             logger?.trackEvent(event: Event.bulkLoadSuccess(key: managerKey, count: collection.count))
         } catch {
@@ -401,7 +435,12 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
 
         stopListener()
 
-        let (updates, deletions) = remote.streamCollectionUpdates()
+        let (updates, deletions): (AsyncThrowingStream<T, Error>, AsyncThrowingStream<String, Error>)
+        if let query = currentQuery {
+            (updates, deletions) = remote.streamCollectionUpdates(query: query)
+        } else {
+            (updates, deletions) = remote.streamCollectionUpdates()
+        }
 
         updatesListenerTask = Task { @MainActor in
             await handleCollectionUpdates(updates)
@@ -593,6 +632,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         case cachesCleared(key: String)
         case syncPendingWritesStart(key: String, count: Int)
         case syncPendingWritesComplete(key: String, synced: Int, failed: Int)
+        case queryChanged(key: String, filterCount: Int)
 
         var eventName: String {
             switch self {
@@ -629,6 +669,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
             case .cachesCleared(let key):                   return "\(key)_cachesCleared"
             case .syncPendingWritesStart(let key, _):       return "\(key)_syncPendingWrites_start"
             case .syncPendingWritesComplete(let key, _, _): return "\(key)_syncPendingWrites_complete"
+            case .queryChanged(let key, _):                  return "\(key)_queryChanged"
             }
         }
 
@@ -676,6 +717,8 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
             case .syncPendingWritesComplete(_, let synced, let failed):
                 dict["synced_count"] = synced
                 dict["failed_count"] = failed
+            case .queryChanged(_, let filterCount):
+                dict["filter_count"] = filterCount
             default:
                 break
             }

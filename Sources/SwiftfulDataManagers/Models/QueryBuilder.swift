@@ -16,10 +16,14 @@ import Foundation
 ///     .where("city", isEqualTo: "NYC")
 ///     .where("tags", arrayContains: "swift")
 /// ```
-public final class QueryBuilder: @unchecked Sendable {
+public final class QueryBuilder: @unchecked Sendable, Equatable {
     private var filters: [QueryFilter] = []
 
     public init() {}
+
+    public static func == (lhs: QueryBuilder, rhs: QueryBuilder) -> Bool {
+        lhs.filters == rhs.filters
+    }
 
     // MARK: - Equality Operators
 
@@ -78,21 +82,21 @@ public final class QueryBuilder: @unchecked Sendable {
 
     /// Filter where field array contains any of the values
     @discardableResult
-    public func `where`(_ field: String, arrayContainsAny values: [any DMCodableSendable]) -> QueryBuilder {
+    public func `where`<V: DMCodableSendable>(_ field: String, arrayContainsAny values: [V]) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .arrayContainsAny, value: values))
         return self
     }
 
     /// Filter where field is in array of values
     @discardableResult
-    public func `where`(_ field: String, `in` values: [any DMCodableSendable]) -> QueryBuilder {
+    public func `where`<V: DMCodableSendable>(_ field: String, `in` values: [V]) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .in, value: values))
         return self
     }
 
     /// Filter where field is not in array of values
     @discardableResult
-    public func `where`(_ field: String, notIn values: [any DMCodableSendable]) -> QueryBuilder {
+    public func `where`<V: DMCodableSendable>(_ field: String, notIn values: [V]) -> QueryBuilder {
         filters.append(QueryFilter(field: field, operator: .notIn, value: values))
         return self
     }
@@ -106,7 +110,7 @@ public final class QueryBuilder: @unchecked Sendable {
 }
 
 /// Represents a single query filter condition
-public struct QueryFilter: Sendable {
+public struct QueryFilter: Sendable, Equatable {
     /// The field name to filter on
     public let field: String
 
@@ -114,17 +118,30 @@ public struct QueryFilter: Sendable {
     public let `operator`: QueryOperator
 
     /// The value to compare against (can be single value or array for array operators)
-    public let value: any Sendable
+    public let value: any DMCodableSendable
 
-    public init(field: String, operator: QueryOperator, value: any Sendable) {
+    public init(field: String, operator: QueryOperator, value: any DMCodableSendable) {
         self.field = field
         self.operator = `operator`
         self.value = value
     }
+
+    public static func == (lhs: QueryFilter, rhs: QueryFilter) -> Bool {
+        guard lhs.field == rhs.field, lhs.operator == rhs.operator else {
+            return false
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let lhsData = try? encoder.encode(lhs.value),
+              let rhsData = try? encoder.encode(rhs.value) else {
+            return false
+        }
+        return lhsData == rhsData
+    }
 }
 
 /// Query comparison operators
-public enum QueryOperator: String, Sendable {
+public enum QueryOperator: String, Sendable, Equatable {
     // Equality
     case isEqualTo = "=="
     case isNotEqualTo = "!="
