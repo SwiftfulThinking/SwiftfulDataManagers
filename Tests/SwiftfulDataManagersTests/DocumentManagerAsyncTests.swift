@@ -9,12 +9,13 @@ import Foundation
 import Testing
 @testable import SwiftfulDataManagers
 
-@Suite("DocumentManagerAsync Tests")
+@Suite("DocumentSyncEngine Async Tests")
+@MainActor
 struct DocumentManagerAsyncTests {
 
     // MARK: - Test Model
 
-    struct TestUser: DMProtocol {
+    struct TestUser: DataSyncModelProtocol {
         let id: String
         var name: String
         var age: Int
@@ -23,11 +24,15 @@ struct DocumentManagerAsyncTests {
 
     // MARK: - Helper
 
-    func createManager(document: TestUser? = nil) -> (DocumentManagerAsync<TestUser>, MockRemoteDocumentService<TestUser>) {
-        let service = MockRemoteDocumentService<TestUser>(document: document)
-        let config = DataManagerAsyncConfiguration(managerKey: "test_user")
-        let manager = DocumentManagerAsync(service: service, configuration: config, logger: nil)
-        return (manager, service)
+    func createEngine(document: TestUser? = nil) -> (DocumentSyncEngine<TestUser>, MockRemoteDocumentService<TestUser>) {
+        let remote = MockRemoteDocumentService<TestUser>(document: document)
+        let engine = DocumentSyncEngine<TestUser>(
+            remote: remote,
+            managerKey: "test_user",
+            enableLocalPersistence: false,
+            logger: nil
+        )
+        return (engine, remote)
     }
 
     // MARK: - Get Document Tests
@@ -35,9 +40,10 @@ struct DocumentManagerAsyncTests {
     @Test("Get document fetches from remote")
     func testGetDocument() async throws {
         let user = TestUser(id: "user_123", name: "Alice", age: 28, email: "alice@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        let result = try await manager.getDocument(id: "user_123")
+        try await engine.startListening(documentId: "user_123")
+        let result = try await engine.getDocumentAsync(id: "user_123")
 
         #expect(result.id == "user_123")
         #expect(result.name == "Alice")
@@ -48,14 +54,15 @@ struct DocumentManagerAsyncTests {
 
     @Test("Save document updates remote")
     func testSaveDocument() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
 
         let user = TestUser(id: "user_123", name: "Charlie", age: 40, email: "charlie@example.com")
 
-        try await manager.saveDocument(user)
+        try await engine.startListening(documentId: "user_123")
+        try await engine.saveDocument(user)
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Update Document Tests
@@ -63,12 +70,13 @@ struct DocumentManagerAsyncTests {
     @Test("Update document sends partial updates")
     func testUpdateDocument() async throws {
         let user = TestUser(id: "user_123", name: "Dave", age: 32, email: "dave@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.updateDocument(id: "user_123", data: ["name": "David", "age": 33])
+        try await engine.startListening(documentId: "user_123")
+        try await engine.updateDocument(id: "user_123", data: ["name": "David", "age": 33])
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Delete Document Tests
@@ -76,22 +84,25 @@ struct DocumentManagerAsyncTests {
     @Test("Delete document removes from remote")
     func testDeleteDocument() async throws {
         let user = TestUser(id: "user_123", name: "Eve", age: 27, email: "eve@example.com")
-        let (manager, _) = createManager(document: user)
+        let (engine, _) = createEngine(document: user)
 
-        try await manager.deleteDocument(id: "user_123")
+        try await engine.startListening(documentId: "user_123")
+        try await engine.deleteDocument(id: "user_123")
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Error Handling Tests
 
     @Test("Get document handles not found error")
     func testGetDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
+
+        try await engine.startListening(documentId: "placeholder")
 
         do {
-            _ = try await manager.getDocument(id: "nonexistent_id")
+            _ = try await engine.getDocumentAsync(id: "nonexistent_id")
             Issue.record("Should have thrown error")
         } catch {
             // Expected error
@@ -100,10 +111,12 @@ struct DocumentManagerAsyncTests {
 
     @Test("Delete document handles not found error")
     func testDeleteDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
+
+        try await engine.startListening(documentId: "placeholder")
 
         do {
-            try await manager.deleteDocument(id: "nonexistent_id")
+            try await engine.deleteDocument(id: "nonexistent_id")
             Issue.record("Should have thrown error")
         } catch {
             // Expected error

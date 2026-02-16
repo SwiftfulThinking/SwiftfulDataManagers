@@ -9,13 +9,13 @@ import Foundation
 import Testing
 @testable import SwiftfulDataManagers
 
-@Suite("CollectionManagerSync Tests")
+@Suite("CollectionSyncEngine Tests")
 @MainActor
 struct CollectionManagerSyncTests {
 
     // MARK: - Test Model
 
-    struct TestItem: DMProtocol {
+    struct TestItem: DataSyncModelProtocol {
         let id: String
         var title: String
         var priority: Int
@@ -24,70 +24,59 @@ struct CollectionManagerSyncTests {
 
     // MARK: - Helper
 
-    func createManager(collection: [TestItem] = []) -> (CollectionManagerSync<TestItem>, MockDMCollectionServices<TestItem>) {
-        let services = MockDMCollectionServices<TestItem>(collection: collection)
-        let config = DataManagerSyncConfiguration(managerKey: "test_items")
-        let manager = CollectionManagerSync(services: services, configuration: config, logger: nil)
-        return (manager, services)
+    func createEngine(collection: [TestItem] = []) -> (CollectionSyncEngine<TestItem>, MockRemoteCollectionService<TestItem>) {
+        let remote = MockRemoteCollectionService<TestItem>(collection: collection)
+        let engine = CollectionSyncEngine<TestItem>(
+            remote: remote,
+            managerKey: "test_items",
+            enableLocalPersistence: false,
+            logger: nil
+        )
+        return (engine, remote)
     }
 
     // MARK: - Initialization Tests
 
     @Test("Initialize with empty collection")
     func testInitialization() {
-        let (manager, _) = createManager()
-        #expect(manager.currentCollection.isEmpty)
+        let (engine, _) = createEngine()
+        #expect(engine.currentCollection.isEmpty)
     }
 
-    @Test("Initialize with cached collection from local persistence")
-    func testInitializationWithCache() {
-        let items = [
-            TestItem(id: "1", title: "Cached Item 1", priority: 1, isCompleted: false),
-            TestItem(id: "2", title: "Cached Item 2", priority: 2, isCompleted: true)
-        ]
-        let services = MockDMCollectionServices<TestItem>(collection: items)
-        let config = DataManagerSyncConfiguration(managerKey: "test_items")
+    // MARK: - Start / Stop Listening Tests
 
-        let manager = CollectionManagerSync(services: services, configuration: config, logger: nil)
-
-        #expect(manager.currentCollection.count == 2)
-        #expect(manager.currentCollection.first?.title == "Cached Item 1")
-    }
-
-    // MARK: - Log In / Log Out Tests
-
-    @Test("Log in fetches collection")
-    func testLogIn() async throws {
+    @Test("Start listening fetches collection")
+    func testStartListening() async throws {
         let items = [
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
+        await engine.startListening()
 
         // Wait for listener to fetch collection
         try await Task.sleep(for: .milliseconds(600))
 
-        #expect(manager.currentCollection.count == 2)
-        #expect(manager.currentCollection.first?.title == "Item 1")
+        #expect(engine.currentCollection.count == 2)
+        #expect(engine.currentCollection.first?.title == "Item 1")
     }
 
-    @Test("Log out clears collection")
-    func testLogOut() async throws {
+    @Test("Stop listening clears collection")
+    func testStopListening() async throws {
         let items = [
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
+        await engine.startListening()
         try await Task.sleep(for: .milliseconds(600))
 
-        #expect(!manager.currentCollection.isEmpty)
+        #expect(!engine.currentCollection.isEmpty)
 
-        manager.logOut()
+        engine.stopListening()
 
-        #expect(manager.currentCollection.isEmpty)
+        #expect(engine.currentCollection.isEmpty)
     }
 
     // MARK: - Get Collection Tests
@@ -99,11 +88,11 @@ struct CollectionManagerSyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
+        await engine.startListening()
 
-        let result = try await manager.getCollectionAsync()
+        let result = try await engine.getCollectionAsync()
 
         #expect(result.count == 3)
         #expect(result.first?.title == "Item 1")
@@ -116,12 +105,12 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
-        _ = try await manager.getCollectionAsync()
+        await engine.startListening()
+        _ = try await engine.getCollectionAsync()
 
-        let result = manager.getCollection()
+        let result = engine.getCollection()
 
         #expect(result.count == 2)
         #expect(result.first?.title == "Item 1")
@@ -136,14 +125,14 @@ struct CollectionManagerSyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
-        _ = try await manager.getCollectionAsync()
+        await engine.startListening()
+        _ = try await engine.getCollectionAsync()
 
-        let document1 = manager.getDocument(id: "1")
-        let document2 = manager.getDocument(id: "2")
-        let document99 = manager.getDocument(id: "99")
+        let document1 = engine.getDocument(id: "1")
+        let document2 = engine.getDocument(id: "2")
+        let document99 = engine.getDocument(id: "99")
 
         #expect(document1?.title == "Item 1")
         #expect(document2?.title == "Item 2")
@@ -156,11 +145,11 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
+        await engine.startListening()
 
-        let document = try await manager.getDocumentAsync(id: "2")
+        let document = try await engine.getDocumentAsync(id: "2")
 
         #expect(document.title == "Item 2")
         #expect(document.priority == 2)
@@ -176,11 +165,11 @@ struct CollectionManagerSyncTests {
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true),
             TestItem(id: "3", title: "Item 3", priority: 3, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
+        await engine.startListening()
 
-        let results = try await manager.getDocumentsAsync { query in
+        let results = try await engine.getDocumentsAsync { query in
             query.where("priority", isGreaterThan: 1)
         }
 
@@ -192,18 +181,18 @@ struct CollectionManagerSyncTests {
 
     @Test("Save document adds to collection")
     func testSaveDocument() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
 
-        await manager.logIn()
+        await engine.startListening()
 
         let newItem = TestItem(id: "new_1", title: "New Item", priority: 5, isCompleted: false)
 
-        try await manager.saveDocument(newItem)
+        try await engine.saveDocument(newItem)
 
         // Wait for save to propagate
         try await Task.sleep(for: .milliseconds(600))
 
-        let document = manager.getDocument(id: "new_1")
+        let document = engine.getDocument(id: "new_1")
         #expect(document?.title == "New Item")
         #expect(document?.priority == 5)
     }
@@ -215,15 +204,15 @@ struct CollectionManagerSyncTests {
         let items = [
             TestItem(id: "1", title: "Original", priority: 1, isCompleted: false)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
-        _ = try await manager.getCollectionAsync()
+        await engine.startListening()
+        _ = try await engine.getCollectionAsync()
 
-        try await manager.updateDocument(id: "1", data: ["title": "Updated", "priority": 10])
+        try await engine.updateDocument(id: "1", data: ["title": "Updated", "priority": 10])
 
         // Call succeeds without throwing
-        #expect(true)
+        #expect(Bool(true))
     }
 
     // MARK: - Delete Document Tests
@@ -234,31 +223,31 @@ struct CollectionManagerSyncTests {
             TestItem(id: "1", title: "Item 1", priority: 1, isCompleted: false),
             TestItem(id: "2", title: "Item 2", priority: 2, isCompleted: true)
         ]
-        let (manager, _) = createManager(collection: items)
+        let (engine, _) = createEngine(collection: items)
 
-        await manager.logIn()
-        _ = try await manager.getCollectionAsync()
+        await engine.startListening()
+        _ = try await engine.getCollectionAsync()
 
-        #expect(manager.currentCollection.count == 2)
+        #expect(engine.currentCollection.count == 2)
 
-        try await manager.deleteDocument(id: "1")
+        try await engine.deleteDocument(id: "1")
 
         // Wait for deletion to propagate
         try await Task.sleep(for: .milliseconds(600))
 
-        #expect(manager.getDocument(id: "1") == nil)
+        #expect(engine.getDocument(id: "1") == nil)
     }
 
     // MARK: - Error Handling Tests
 
     @Test("Get document handles not found error")
     func testGetDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
 
-        await manager.logIn()
+        await engine.startListening()
 
         do {
-            _ = try await manager.getDocumentAsync(id: "nonexistent")
+            _ = try await engine.getDocumentAsync(id: "nonexistent")
             Issue.record("Should have thrown error")
         } catch {
             // Expected error
@@ -267,12 +256,12 @@ struct CollectionManagerSyncTests {
 
     @Test("Delete document handles not found error")
     func testDeleteDocumentNotFound() async throws {
-        let (manager, _) = createManager()
+        let (engine, _) = createEngine()
 
-        await manager.logIn()
+        await engine.startListening()
 
         do {
-            try await manager.deleteDocument(id: "nonexistent")
+            try await engine.deleteDocument(id: "nonexistent")
             Issue.record("Should have thrown error")
         } catch {
             // Expected error

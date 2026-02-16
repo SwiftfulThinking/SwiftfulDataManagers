@@ -73,6 +73,20 @@ public final class MockRemoteCollectionService<T: DataSyncModelProtocol>: Remote
         updatesContinuation?.yield(document)
     }
 
+    public nonisolated func streamCollection() -> AsyncThrowingStream<[T], Error> {
+        AsyncThrowingStream { continuation in
+            Task { @MainActor in
+                continuation.yield(self.currentCollection)
+                continuation.onTermination = { @Sendable _ in }
+            }
+        }
+    }
+
+    public nonisolated func streamCollection(query: QueryBuilder) -> AsyncThrowingStream<[T], Error> {
+        // Mock delegates to unfiltered stream (mock doesn't filter)
+        return streamCollection()
+    }
+
     public nonisolated func streamCollectionUpdates() -> (
         updates: AsyncThrowingStream<T, Error>,
         deletions: AsyncThrowingStream<String, Error>
@@ -120,6 +134,14 @@ public final class MockRemoteCollectionService<T: DataSyncModelProtocol>: Remote
         try await Task.sleep(for: .seconds(0.5))
         // Mock implementation returns all documents (query filtering not implemented)
         return currentCollection
+    }
+
+    public nonisolated func streamCollectionUpdates(query: QueryBuilder) -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    ) {
+        // Mock delegates to unfiltered stream (mock doesn't filter)
+        return streamCollectionUpdates()
     }
 
     // MARK: - Mock Error

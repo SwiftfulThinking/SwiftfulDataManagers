@@ -56,6 +56,15 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Throws: Error if update fails
     func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws
 
+    /// Stream real-time snapshots of the entire collection
+    /// - Returns: An async stream of the full collection array on each change
+    func streamCollection() -> AsyncThrowingStream<[T], Error>
+
+    /// Stream real-time snapshots of documents matching a query
+    /// - Parameter query: QueryBuilder with filter conditions
+    /// - Returns: An async stream of the filtered collection array on each change
+    func streamCollection(query: QueryBuilder) -> AsyncThrowingStream<[T], Error>
+
     /// Stream real-time updates for individual documents in the collection
     /// - Returns: Tuple of (updates stream, deletions stream)
     /// - Note: Updates stream yields individual document changes, deletions stream yields document IDs
@@ -74,4 +83,12 @@ public protocol RemoteCollectionService<T>: Sendable {
     /// - Returns: Array of documents matching all query filters
     /// - Throws: Error if query fails
     func getDocuments(query: QueryBuilder) async throws -> [T]
+
+    /// Stream real-time updates for documents matching a query
+    /// - Parameter query: QueryBuilder with filter conditions
+    /// - Returns: Tuple of (updates stream, deletions stream) scoped to the query
+    func streamCollectionUpdates(query: QueryBuilder) -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    )
 }
