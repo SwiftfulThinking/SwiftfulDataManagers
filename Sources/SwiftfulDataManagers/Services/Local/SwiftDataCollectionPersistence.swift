@@ -20,8 +20,11 @@ public final class SwiftDataCollectionPersistence<T: DataSyncModelProtocol>: Loc
 
     public init(managerKey: String) {
         self.managerKey = managerKey
+        let storeURL = URL.applicationSupportDirectory
+            .appendingPathComponent("SwiftfulDataManagers_\(managerKey).store")
+        let config = ModelConfiguration(url: storeURL)
         // swiftlint:disable:next force_try
-        self.container = try! ModelContainer(for: DocumentEntity.self)
+        self.container = try! ModelContainer(for: DocumentEntity.self, configurations: config)
     }
 
     public func getCollection(managerKey: String) throws -> [T] {
