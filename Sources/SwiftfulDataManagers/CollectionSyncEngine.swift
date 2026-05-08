@@ -184,10 +184,17 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     }
 
     /// Get collection asynchronously.
-    /// - Parameter behavior: `.cachedOrFetch` (default) returns cached if available, `.alwaysFetch` always fetches from remote.
+    /// - Parameters:
+    ///   - behavior: `.cachedOrFetch` (default) returns cached if available, `.alwaysFetch` always fetches from remote.
+    ///   - canCacheResult: When `true` (default) AND `enableLocalPersistence` is `true`, the fetched collection is
+    ///     written into local persistence and `currentCollection`. Set to `false` to perform a one-off remote read
+    ///     without affecting the local cache.
     /// - Returns: Array of all documents.
     /// - Throws: Error if fetch fails.
-    public func getCollectionAsync(behavior: FetchBehavior = .cachedOrFetch) async throws -> [T] {
+    public func getCollectionAsync(
+        behavior: FetchBehavior = .cachedOrFetch,
+        canCacheResult: Bool = true
+    ) async throws -> [T] {
         defer {
             if listenerFailedToAttach {
                 startListener()
@@ -205,6 +212,12 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         do {
             let collection = try await remote.getCollection()
             logger?.trackEvent(event: Event.getCollectionSuccess(key: managerKey, count: collection.count))
+            // Full-collection fetch replaces the local cache wholesale — same
+            // semantics as `bulkLoadCollection`. This removes any locally
+            // cached docs that no longer exist server-side.
+            if canCacheResult, enableLocalPersistence {
+                handleCollectionUpdate(collection)
+            }
             return collection
         } catch {
             logger?.trackEvent(event: Event.getCollectionFail(key: managerKey, error: error))
@@ -227,9 +240,16 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     /// - Parameters:
     ///   - id: The document ID to fetch.
     ///   - behavior: `.cachedOrFetch` (default) returns cached if available, `.alwaysFetch` always fetches from remote.
+    ///   - canCacheResult: When `true` (default) AND `enableLocalPersistence` is `true`, the fetched document is
+    ///     written into local persistence and merged into `currentCollection`. Set to `false` to perform a one-off
+    ///     remote read without affecting the local cache.
     /// - Returns: The document.
     /// - Throws: Error if fetch fails.
-    public func getDocumentAsync(id: String, behavior: FetchBehavior = .cachedOrFetch) async throws -> T {
+    public func getDocumentAsync(
+        id: String,
+        behavior: FetchBehavior = .cachedOrFetch,
+        canCacheResult: Bool = true
+    ) async throws -> T {
         defer {
             if listenerFailedToAttach {
                 startListener()
@@ -247,6 +267,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         do {
             let document = try await remote.getDocument(id: id)
             logger?.trackEvent(event: Event.getDocumentSuccess(key: managerKey, documentId: id))
+            cacheFetchedDocuments([document], canCacheResult: canCacheResult)
             return document
         } catch {
             logger?.trackEvent(event: Event.getDocumentFail(key: managerKey, documentId: id, error: error))
@@ -279,20 +300,50 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         return currentCollection.filter(predicate)
     }
 
-    /// Get documents filtered by a condition asynchronously — returns cached if available, otherwise fetches from remote.
-    /// - Parameter predicate: Filtering condition.
+    /// Get documents filtered by a Swift predicate asynchronously.
+    /// - Parameters:
+    ///   - predicate: Filtering condition.
+    ///   - behavior: `.cachedOrFetch` (default) returns cached if available, `.alwaysFetch` always fetches from remote.
+    ///   - canCacheResult: When `true` (default) AND `enableLocalPersistence` is `true`, any remote fetch performed
+    ///     to satisfy the call is written into local persistence. The predicate is then applied to the resulting
+    ///     collection.
     /// - Returns: Filtered array of documents.
     /// - Throws: Error if fetch fails.
-    public func getDocumentsAsync(where predicate: (T) -> Bool) async throws -> [T] {
-        let collection = try await getCollectionAsync()
+    public func getDocumentsAsync(
+        where predicate: (T) -> Bool,
+        behavior: FetchBehavior = .cachedOrFetch,
+        canCacheResult: Bool = true
+    ) async throws -> [T] {
+        let collection = try await getCollectionAsync(behavior: behavior, canCacheResult: canCacheResult)
         return collection.filter(predicate)
     }
 
-    /// Query documents using QueryBuilder.
-    /// - Parameter buildQuery: Closure to build the query.
-    /// - Returns: Array of documents matching the query filters from remote.
-    /// - Throws: Error if query fails.
-    public func getDocumentsAsync(buildQuery: (QueryBuilder) -> QueryBuilder) async throws -> [T] {
+    /// Query documents using `QueryBuilder`.
+    ///
+    /// On `.cachedOrFetch` with a non-empty `currentCollection`, the query is
+    /// evaluated against the in-memory cache via `QueryBuilder.evaluate(against:)`
+    /// and no remote call is made. Cursor operations (startAt / startAfter /
+    /// endAt / endBefore) are no-ops in local evaluation.
+    ///
+    /// On `.alwaysFetch` or when the cache is empty, a remote query runs.
+    /// If `canCacheResult && enableLocalPersistence` is true, every returned
+    /// document is also written into local persistence and merged into
+    /// `currentCollection`, so subsequent `getDocuments(where:)` /
+    /// `getDocumentsAsync(buildQuery:)` calls can hit the cache.
+    ///
+    /// - Parameters:
+    ///   - buildQuery: Closure to build the query.
+    ///   - behavior: `.cachedOrFetch` (default) evaluates locally if cache is populated, otherwise fetches from
+    ///     remote. `.alwaysFetch` always fetches from remote.
+    ///   - canCacheResult: When `true` (default) AND `enableLocalPersistence` is `true`, the fetched documents are
+    ///     merged into local persistence and `currentCollection`. Has no effect on cache hits.
+    /// - Returns: Array of documents matching the query.
+    /// - Throws: Error if remote query fails.
+    public func getDocumentsAsync(
+        buildQuery: (QueryBuilder) -> QueryBuilder,
+        behavior: FetchBehavior = .cachedOrFetch,
+        canCacheResult: Bool = true
+    ) async throws -> [T] {
         defer {
             if listenerFailedToAttach {
                 startListener()
@@ -302,11 +353,17 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         let query = buildQuery(QueryBuilder())
         let filterCount = query.getFilters().count
 
+        // Evaluate against local cache when allowed and the cache is non-empty.
+        if behavior == .cachedOrFetch, !currentCollection.isEmpty {
+            return query.evaluate(against: currentCollection)
+        }
+
         logger?.trackEvent(event: Event.getDocumentsQueryStart(key: managerKey, filterCount: filterCount))
 
         do {
             let documents = try await remote.getDocuments(query: query)
             logger?.trackEvent(event: Event.getDocumentsQuerySuccess(key: managerKey, count: documents.count, filterCount: filterCount))
+            cacheFetchedDocuments(documents, canCacheResult: canCacheResult)
             return documents
         } catch {
             logger?.trackEvent(event: Event.getDocumentsQueryFail(key: managerKey, filterCount: filterCount, error: error))
@@ -479,6 +536,22 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
     }
 
     // MARK: - Private: Bulk Load
+
+    /// Writes fetched documents into local persistence and merges them into
+    /// `currentCollection`. Called from the `getXxxAsync` paths when both
+    /// `canCacheResult` (caller opt-in) and `enableLocalPersistence` (engine
+    /// config) are true. No-op otherwise.
+    private func cacheFetchedDocuments(_ documents: [T], canCacheResult: Bool) {
+        guard canCacheResult, enableLocalPersistence else { return }
+        for document in documents {
+            try? local?.saveDocument(managerKey: managerKey, document)
+            if let index = currentCollection.firstIndex(where: { $0.id == document.id }) {
+                currentCollection[index] = document
+            } else {
+                currentCollection.append(document)
+            }
+        }
+    }
 
     private func bulkLoadCollection() async {
         logger?.trackEvent(event: Event.bulkLoadStart(key: managerKey))

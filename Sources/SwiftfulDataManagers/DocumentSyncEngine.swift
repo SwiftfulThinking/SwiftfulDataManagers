@@ -180,9 +180,17 @@ public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
     /// - Parameters:
     ///   - id: Optional document ID. If nil, uses the stored document ID from `startListening`.
     ///   - behavior: `.cachedOrFetch` (default) returns cached if available, `.alwaysFetch` always fetches from remote.
+    ///   - canCacheResult: When `true` (default) AND `enableLocalPersistence` is `true`, the fetched document is
+    ///     written into local persistence and `currentDocument` (only when fetched without an explicit `id` —
+    ///     fetching by an arbitrary `id` does not displace the engine's own document state). Set to `false` to
+    ///     perform a one-off remote read without affecting the local cache.
     /// - Returns: The document.
     /// - Throws: Error if fetch fails or no document ID is available.
-    public func getDocumentAsync(id: String? = nil, behavior: FetchBehavior = .cachedOrFetch) async throws -> T {
+    public func getDocumentAsync(
+        id: String? = nil,
+        behavior: FetchBehavior = .cachedOrFetch,
+        canCacheResult: Bool = true
+    ) async throws -> T {
         let resolvedId = id ?? documentId
 
         defer {
@@ -206,6 +214,13 @@ public final class DocumentSyncEngine<T: DataSyncModelProtocol> {
         do {
             let document = try await remote.getDocument(id: resolvedId)
             logger?.trackEvent(event: Event.getDocumentSuccess(key: managerKey, documentId: resolvedId))
+            // Persist the fetched document only when caching is allowed AND
+            // the caller didn't pass an explicit id (an explicit id is treated
+            // as a one-off probe, not "this is now the engine's document").
+            if canCacheResult, enableLocalPersistence, id == nil {
+                currentDocument = document
+                try? local?.saveDocument(managerKey: managerKey, document)
+            }
             return document
         } catch {
             logger?.trackEvent(event: Event.getDocumentFail(key: managerKey, documentId: resolvedId, error: error))
