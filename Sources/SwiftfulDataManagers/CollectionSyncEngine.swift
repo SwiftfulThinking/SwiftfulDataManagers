@@ -371,6 +371,69 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         }
     }
 
+    /// Fetches fresh documents from remote for `buildQuery`, then REPLACES the
+    /// locally-cached slice with the result: every cached document matching
+    /// `scope` is removed from persistence and `currentCollection`, and the
+    /// fetched documents are saved in their place.
+    ///
+    /// Use this to invalidate a known-stale slice of the cache (e.g. all cards
+    /// of one lesson after that lesson's `updated_at` advanced). The cached
+    /// getters and `.alwaysFetch` can only UPSERT — a document deleted
+    /// remotely would linger in the cache forever; this method evicts it.
+    ///
+    /// The remote fetch happens FIRST — if it throws, the cache is left
+    /// untouched (never trade a stale cache for an empty one).
+    ///
+    /// - Parameters:
+    ///   - buildQuery: Closure to build the remote query for the fresh fetch.
+    ///   - scope: Predicate selecting which cached documents belong to the
+    ///     slice being replaced. Should match the same population as
+    ///     `buildQuery` targets remotely.
+    /// - Returns: The freshly fetched documents.
+    /// - Throws: Error if the remote query fails (cache unchanged).
+    @discardableResult
+    public func replaceDocuments(
+        buildQuery: (QueryBuilder) -> QueryBuilder,
+        scope: (T) -> Bool
+    ) async throws -> [T] {
+        let query = buildQuery(QueryBuilder())
+        let filterCount = query.getFilters().count
+        logger?.trackEvent(event: Event.replaceDocumentsStart(key: managerKey, filterCount: filterCount))
+
+        do {
+            let documents = try await remote.getDocuments(query: query)
+
+            // Evict the stale slice from persistence + memory...
+            let stale = currentCollection.filter(scope)
+            if enableLocalPersistence {
+                for document in stale {
+                    try? local?.deleteDocument(managerKey: managerKey, id: document.id)
+                }
+            }
+            currentCollection.removeAll(where: scope)
+
+            // ...then save the fresh documents in its place. Done manually
+            // (not via cacheFetchedDocuments) so `currentCollection` also
+            // updates when local persistence is disabled.
+            for document in documents {
+                if enableLocalPersistence {
+                    try? local?.saveDocument(managerKey: managerKey, document)
+                }
+                if let index = currentCollection.firstIndex(where: { $0.id == document.id }) {
+                    currentCollection[index] = document
+                } else {
+                    currentCollection.append(document)
+                }
+            }
+
+            logger?.trackEvent(event: Event.replaceDocumentsSuccess(key: managerKey, count: documents.count, removed: stale.count, filterCount: filterCount))
+            return documents
+        } catch {
+            logger?.trackEvent(event: Event.replaceDocumentsFail(key: managerKey, filterCount: filterCount, error: error))
+            throw error
+        }
+    }
+
     /// Stream real-time snapshots of the entire collection.
     ///
     /// Returns the full collection array on each change, without affecting `currentCollection`.
@@ -752,6 +815,9 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
         case getDocumentsQueryStart(key: String, filterCount: Int)
         case getDocumentsQuerySuccess(key: String, count: Int, filterCount: Int)
         case getDocumentsQueryFail(key: String, filterCount: Int, error: Error)
+        case replaceDocumentsStart(key: String, filterCount: Int)
+        case replaceDocumentsSuccess(key: String, count: Int, removed: Int, filterCount: Int)
+        case replaceDocumentsFail(key: String, filterCount: Int, error: Error)
         case bulkLoadStart(key: String)
         case bulkLoadSuccess(key: String, count: Int)
         case bulkLoadFail(key: String, error: Error)
@@ -793,6 +859,9 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
             case .getDocumentsQueryStart(let key, _):       return "\(key)_getDocumentsQuery_start"
             case .getDocumentsQuerySuccess(let key, _, _):  return "\(key)_getDocumentsQuery_success"
             case .getDocumentsQueryFail(let key, _, _):     return "\(key)_getDocumentsQuery_fail"
+            case .replaceDocumentsStart(let key, _):        return "\(key)_replaceDocuments_start"
+            case .replaceDocumentsSuccess(let key, _, _, _): return "\(key)_replaceDocuments_success"
+            case .replaceDocumentsFail(let key, _, _):      return "\(key)_replaceDocuments_fail"
             case .bulkLoadStart(let key):                   return "\(key)_bulkLoad_start"
             case .bulkLoadSuccess(let key, _):              return "\(key)_bulkLoad_success"
             case .bulkLoadFail(let key, _):                 return "\(key)_bulkLoad_fail"
@@ -840,6 +909,15 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
             case .getDocumentsQueryFail(_, let filterCount, let error):
                 dict["filter_count"] = filterCount
                 dict.merge(error.eventParameters)
+            case .replaceDocumentsStart(_, let filterCount):
+                dict["filter_count"] = filterCount
+            case .replaceDocumentsSuccess(_, let count, let removed, let filterCount):
+                dict["count"] = count
+                dict["removed_count"] = removed
+                dict["filter_count"] = filterCount
+            case .replaceDocumentsFail(_, let filterCount, let error):
+                dict["filter_count"] = filterCount
+                dict.merge(error.eventParameters)
             case .bulkLoadSuccess(_, let count), .listenerSuccess(_, let count), .collectionUpdated(_, let count):
                 dict["count"] = count
             case .bulkLoadFail(_, let error), .listenerFail(_, let error):
@@ -882,7 +960,7 @@ public final class CollectionSyncEngine<T: DataSyncModelProtocol> {
 
         var type: DataLogType {
             switch self {
-            case .getCollectionFail, .getDocumentFail, .getDocumentsQueryFail, .bulkLoadFail, .listenerFail, .saveFail, .updateFail, .deleteFail:
+            case .getCollectionFail, .getDocumentFail, .getDocumentsQueryFail, .replaceDocumentsFail, .bulkLoadFail, .listenerFail, .saveFail, .updateFail, .deleteFail:
                 return .severe
             default:
                 return .info
